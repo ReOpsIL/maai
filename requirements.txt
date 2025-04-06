@@ -1,0 +1,6 @@
+python-dotenv
+google-generativeai
+colorama
+PyYAML
+flake8
+pylint
