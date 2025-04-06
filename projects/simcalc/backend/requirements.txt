@@ -1,3 +1,0 @@
-# Backend dependencies
-Flask>=2.0,<4.0
-python-dotenv>=0.19,<2.0 # Optional: for loading .env files in development
