@@ -42,13 +42,56 @@ class CoderAgent(BaseAgent):
 
         # 1. Read Implementation Plan (Common to both modes)
         if impl_content is None:
-            impl_md_path = os.path.join(self.docs_path, "impl.md")
-            self.logger.info(f"Reading implementation plan from: {impl_md_path}")
-            impl_content = self._read_file(impl_md_path)
-            if impl_content is None:
-                raise FileNotFoundError(f"Could not read impl.md for project {self.project_name}. Please ensure the Architect Agent ran successfully.")
+            self.logger.info(f"Searching for implementation plans (impl_*.md, integ.md) in: {self.docs_path}")
+            plan_files = []
+            all_files = []
+            try:
+                all_files = os.listdir(self.docs_path)
+                plan_files = [
+                    f for f in all_files
+                    if (f.startswith("impl_") and f.endswith(".md")) or f == "integ.md"
+                ]
+                # Prioritize integ.md if it exists
+                if "integ.md" in plan_files:
+                    plan_files.remove("integ.md")
+                    plan_files.insert(0, "integ.md") # Read integration first
+
+            except FileNotFoundError:
+                 self.logger.error(f"Documentation directory not found: {self.docs_path}")
+                 raise FileNotFoundError(f"Documentation directory not found: {self.docs_path}")
+            except Exception as e:
+                 self.logger.error(f"Error listing files in {self.docs_path}: {e}", exc_info=True)
+                 raise RuntimeError(f"Could not list files in documentation directory: {e}")
+
+            if not plan_files:
+                # Fallback to check for the old impl.md if no new files found
+                impl_md_path = os.path.join(self.docs_path, "impl.md")
+                if os.path.exists(impl_md_path):
+                     self.logger.warning("Found legacy 'impl.md'. Reading it as the sole implementation plan.")
+                     plan_files = ["impl.md"]
+                else:
+                     self.logger.error(f"No implementation plan files (impl_*.md, integ.md, or legacy impl.md) found in {self.docs_path}.")
+                     raise FileNotFoundError(f"No implementation plan files found for project {self.project_name} in {self.docs_path}. Ensure the Architect Agent ran successfully.")
+
+            combined_content = []
+            self.logger.info(f"Reading implementation plans from: {', '.join(plan_files)}")
+            for filename in plan_files:
+                file_path = os.path.join(self.docs_path, filename)
+                content = self._read_file(file_path)
+                if content is not None:
+                    combined_content.append(f"# --- Content from: {filename} ---\n\n{content}\n\n# --- End of: {filename} ---")
+                else:
+                    self.logger.warning(f"Could not read content from implementation file: {file_path}")
+                    # Decide if this should be fatal. For now, continue.
+
+            if not combined_content:
+                 raise FileNotFoundError(f"Failed to read content from any identified implementation plan files: {', '.join(plan_files)}")
+
+            impl_content = "\n\n".join(combined_content)
+            self.logger.info(f"Successfully combined content from {len(plan_files)} implementation plan file(s). Total length: {len(impl_content)} chars.")
+
         else:
-             self.logger.info("Using provided implementation plan content.")
+             self.logger.info("Using provided implementation plan content (skipping file read).")
 
 
         written_files = [] # Keep track of files actually written/updated

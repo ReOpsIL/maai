@@ -22,7 +22,8 @@ from agents import (
 )
 
 # --- Constants ---
-PROJECTS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'projects'))
+# Default projects directory, can be overridden by command-line argument
+DEFAULT_PROJECTS_DIR = os.path.expanduser('~/projects')
 VENV_DIR_NAME = ".venv"
 
 # --- Color Constants ---
@@ -44,8 +45,9 @@ logger = logging.getLogger("Orchestrator")
 
 # --- Helper Functions ---
 
-def get_project_path(project_name: str) -> str:
-    return os.path.join(PROJECTS_DIR, project_name)
+def get_project_path(project_name: str, projects_dir: str) -> str:
+    """Constructs the full path for a given project name within the specified projects directory."""
+    return os.path.join(projects_dir, project_name)
 
 def ensure_project_structure(project_path: str):
     logger.info(f"Ensuring project structure exists at: {project_path}")
@@ -58,19 +60,20 @@ def ensure_project_structure(project_path: str):
         logger.error(f"Failed to create project structure at {project_path}: {e}")
         raise
 
-def list_projects():
-    logger.info(f"Listing projects in: {PROJECTS_DIR}")
-    if not os.path.exists(PROJECTS_DIR):
-        logger.warning(f"Projects directory '{PROJECTS_DIR}' does not exist.")
-        print(f"{WARN_COLOR}No projects found (directory '{PROJECTS_DIR}' missing).")
+def list_projects(projects_dir: str):
+    """Lists projects found within the specified projects directory."""
+    logger.info(f"Listing projects in: {projects_dir}")
+    if not os.path.exists(projects_dir):
+        logger.warning(f"Projects directory '{projects_dir}' does not exist.")
+        print(f"{WARN_COLOR}No projects found (directory '{projects_dir}' missing).")
         return
     try:
-        projects = [d for d in os.listdir(PROJECTS_DIR) if os.path.isdir(os.path.join(PROJECTS_DIR, d))]
+        projects = [d for d in os.listdir(projects_dir) if os.path.isdir(os.path.join(projects_dir, d))]
         if not projects: print(f"{INFO_COLOR}No projects found.")
         else:
             print(f"{INFO_COLOR}Available projects:")
             for project in sorted(projects): print(f"- {project}")
-    except OSError as e: logger.error(f"Error listing projects in {PROJECTS_DIR}: {e}"); print(f"{ERROR_COLOR}Error accessing projects directory: {e}")
+    except OSError as e: logger.error(f"Error listing projects in {projects_dir}: {e}"); print(f"{ERROR_COLOR}Error accessing projects directory: {e}")
 
 def _extract_dependencies(impl_content: str) -> list[str]:
     logger.info("Extracting dependencies from implementation plan using AI...")
@@ -150,14 +153,14 @@ def _get_venv_python_path(project_path: str) -> str | None:
 
 # --- Command Handlers ---
 
-def handle_list_command(): list_projects()
-def handle_idea_command(idea_text: str, project_name: str | None):
+def handle_list_command(projects_dir: str): list_projects(projects_dir)
+def handle_idea_command(idea_text: str, project_name: str | None, projects_dir: str):
     logger.info(f"Handling '--idea' action: Text='{idea_text[:50]}...', Project='{project_name}'")
     if not project_name:
         project_name = slugify(idea_text)
         if not project_name: logger.error("Could not generate valid project name."); print(f"{ERROR_COLOR}Error: Could not generate valid project name."); return
         logger.info(f"Generated project name: {project_name}")
-    project_path = get_project_path(project_name)
+    project_path = get_project_path(project_name, projects_dir)
     try: ensure_project_structure(project_path)
     except Exception: print(f"{ERROR_COLOR}Error: Failed to set up project structure for '{project_name}'."); return
     print(f"{AGENT_COLOR}Initializing Innovator Agent...{RESET_ALL}")
@@ -167,9 +170,9 @@ def handle_idea_command(idea_text: str, project_name: str | None):
         print(f"{SUCCESS_COLOR}Successfully processed idea for project '{project_name}'. Concept saved to: {idea_md_path}")
     except Exception as e: logger.error(f"Innovator Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error processing idea: {e}")
 
-def handle_update_idea_command(modification_text: str, project_name: str):
+def handle_update_idea_command(modification_text: str, project_name: str, projects_dir: str):
     logger.info(f"Handling '--update-idea' action for project: {project_name}")
-    project_path = get_project_path(project_name)
+    project_path = get_project_path(project_name, projects_dir)
     if not os.path.exists(project_path) or not os.path.isdir(project_path): logger.error(f"Project '{project_name}' not found."); print(f"{ERROR_COLOR}Error: Project '{project_name}' does not exist."); return
     idea_md_path = os.path.join(project_path, "docs", "idea.md")
     if not os.path.exists(idea_md_path): logger.error(f"Cannot update idea: 'docs/idea.md' not found."); print(f"{ERROR_COLOR}Error: 'docs/idea.md' not found."); return
@@ -180,9 +183,9 @@ def handle_update_idea_command(modification_text: str, project_name: str):
         print(f"{SUCCESS_COLOR}Successfully updated idea for project '{project_name}'. Concept saved to: {updated_idea_md_path}")
     except Exception as e: logger.error(f"Innovator Agent update failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error updating idea: {e}")
 
-def handle_analyze_idea_command(project_name: str):
+def handle_analyze_idea_command(project_name: str, projects_dir: str):
     logger.info(f"Handling '--analyze-idea' action for project: {project_name}")
-    project_path = get_project_path(project_name)
+    project_path = get_project_path(project_name, projects_dir)
     if not os.path.exists(project_path) or not os.path.isdir(project_path): logger.error(f"Project '{project_name}' not found."); print(f"{ERROR_COLOR}Error: Project '{project_name}' does not exist."); return
     idea_md_path = os.path.join(project_path, "docs", "idea.md")
     if not os.path.exists(idea_md_path): logger.error(f"Cannot analyze idea: 'docs/idea.md' not found."); print(f"{ERROR_COLOR}Error: 'docs/idea.md' not found."); return
@@ -193,9 +196,9 @@ def handle_analyze_idea_command(project_name: str):
         print(f"{SUCCESS_COLOR}Successfully analyzed idea for project '{project_name}'. Analysis saved to: {analysis_md_path}")
     except Exception as e: logger.error(f"Market Analyst Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error analyzing idea: {e}")
 
-def handle_generate_doc_command(doc_type: str, project_name: str):
+def handle_generate_doc_command(doc_type: str, project_name: str, projects_dir: str):
     logger.info(f"Handling '--generate-doc' action for project: {project_name}, type: {doc_type}")
-    project_path = get_project_path(project_name)
+    project_path = get_project_path(project_name, projects_dir)
     if not os.path.exists(project_path) or not os.path.isdir(project_path): logger.error(f"Project '{project_name}' not found."); print(f"{ERROR_COLOR}Error: Project '{project_name}' does not exist."); return
     if not os.path.exists(os.path.join(project_path, "docs", "idea.md")): logger.warning(f"Cannot find 'docs/idea.md'. Context limited.")
     if not os.path.exists(os.path.join(project_path, "docs", "impl.md")): logger.warning(f"Cannot find 'docs/impl.md'. Context limited.")
@@ -207,9 +210,9 @@ def handle_generate_doc_command(doc_type: str, project_name: str):
         print(f"{SUCCESS_COLOR}Successfully generated '{doc_type}' documentation for project '{project_name}'. Saved to: {generated_doc_path}")
     except Exception as e: logger.error(f"Documenter Agent failed for type '{doc_type}': {e}", exc_info=True); print(f"{ERROR_COLOR}Error generating documentation: {e}")
 
-def handle_research_command(project_name: str):
+def handle_research_command(project_name: str, projects_dir: str):
     logger.info(f"Handling '--research' action for project: {project_name}")
-    project_path = get_project_path(project_name)
+    project_path = get_project_path(project_name, projects_dir)
     if not os.path.exists(project_path) or not os.path.isdir(project_path): logger.error(f"Project '{project_name}' not found."); print(f"{ERROR_COLOR}Error: Project '{project_name}' does not exist."); return
     idea_md_path = os.path.join(project_path, "docs", "idea.md")
     if not os.path.exists(idea_md_path): logger.error(f"Cannot research: 'docs/idea.md' not found."); print(f"{ERROR_COLOR}Error: 'docs/idea.md' not found."); return
@@ -220,9 +223,9 @@ def handle_research_command(project_name: str):
         print(f"{SUCCESS_COLOR}Successfully performed research for project '{project_name}'. Summary saved to: {research_summary_path}")
     except Exception as e: logger.error(f"Research Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error performing research: {e}")
 
-async def handle_update_command(modification_text: str, project_name: str, execute_command_func):
+async def handle_update_command(modification_text: str, project_name: str, projects_dir: str, execute_command_func):
     logger.info(f"Handling '--update' action for project: {project_name}")
-    project_path = get_project_path(project_name)
+    project_path = get_project_path(project_name, projects_dir)
     if not os.path.exists(project_path) or not os.path.isdir(project_path): logger.error(f"Project '{project_name}' not found."); print(f"{ERROR_COLOR}Error: Project '{project_name}' does not exist."); return
     idea_md_path = os.path.join(project_path, "docs", "idea.md")
     impl_md_path = os.path.join(project_path, "docs", "impl.md")
@@ -272,10 +275,10 @@ async def handle_update_command(modification_text: str, project_name: str, execu
     print(f"\n{SUCCESS_COLOR}Update finished successfully for project '{project_name}'.{RESET_ALL}")
 
 
-async def handle_build_command(project_name: str, execute_command_func):
+async def handle_build_command(project_name: str, projects_dir: str, execute_command_func):
     """Handles the --build command: Runs the Architect Agent to generate architecture docs."""
     logger.info(f"Handling '--build' action (Architect only) for project: {project_name}")
-    project_path = get_project_path(project_name)
+    project_path = get_project_path(project_name, projects_dir)
     if not os.path.exists(project_path) or not os.path.isdir(project_path):
         logger.error(f"Project '{project_name}' not found.")
         print(f"{ERROR_COLOR}Error: Project '{project_name}' does not exist.")
@@ -312,32 +315,39 @@ async def handle_build_command(project_name: str, execute_command_func):
 
 # (Removed build pipeline steps: Dependencies, Coder, Reviewer, Tester, Documenter)
 
-async def handle_code_command(project_name: str, fix: bool, execute_command_func):
+async def handle_code_command(project_name: str, fix: bool, projects_dir: str, execute_command_func):
     """Handles the --code command: Runs Coder Agent, optionally with --fix using review.md."""
     logger.info(f"Handling '--code' action for project: {project_name}, Fix mode: {fix}")
-    project_path = get_project_path(project_name)
+    project_path = get_project_path(project_name, projects_dir)
     if not os.path.exists(project_path) or not os.path.isdir(project_path):
         logger.error(f"Project '{project_name}' not found.")
         print(f"{ERROR_COLOR}Error: Project '{project_name}' does not exist.")
         return
 
-    impl_md_path = os.path.join(project_path, "docs", "impl.md")
-    if not os.path.exists(impl_md_path):
-        logger.error(f"Cannot code: 'docs/impl.md' not found.")
-        print(f"{ERROR_COLOR}Error: 'docs/impl.md' not found. Please run --build first.")
+    # Check for existence of *any* implementation plan files
+    docs_path = os.path.join(project_path, "docs")
+    try:
+        plan_files_exist = any(
+            (f.startswith("impl_") and f.endswith(".md")) or f == "integ.md" or f == "impl.md"
+            for f in os.listdir(docs_path)
+            if os.path.isfile(os.path.join(docs_path, f))
+        )
+    except FileNotFoundError:
+        logger.error(f"Documentation directory not found: {docs_path}")
+        print(f"{ERROR_COLOR}Error: Documentation directory '{docs_path}' not found.")
+        return
+    except Exception as e:
+        logger.error(f"Error checking for implementation plans in {docs_path}: {e}", exc_info=True)
+        print(f"{ERROR_COLOR}Error checking for implementation plans: {e}")
         return
 
-    # Read implementation plan content
-    impl_content = None
-    try:
-        # Use a base agent or utility to read the file
-        temp_reader = DocumenterAgent(project_name, project_path) # Reusing agent for its read method
-        impl_content = temp_reader._read_file(impl_md_path)
-        if not impl_content: raise IOError("Implementation plan file is empty.")
-    except Exception as e:
-        logger.error(f"Failed to read implementation plan '{impl_md_path}': {e}", exc_info=True)
-        print(f"{ERROR_COLOR}Error reading implementation plan: {e}")
+    if not plan_files_exist:
+        logger.error(f"Cannot code: No implementation plan files (impl_*.md, integ.md, or impl.md) found in '{docs_path}'.")
+        print(f"{ERROR_COLOR}Error: No implementation plan files found in '{docs_path}'. Please run --build first.")
         return
+
+    # CoderAgent now reads the implementation plan(s) internally.
+    # No need to read impl_content here anymore.
 
     feedback_content = None
     if fix:
@@ -364,7 +374,8 @@ async def handle_code_command(project_name: str, fix: bool, execute_command_func
     coder = CoderAgent(project_name=project_name, project_path=project_path)
     generated_files = []
     try:
-        generated_files = coder.run(feedback=feedback_content, impl_content=impl_content)
+        # Pass impl_content=None, CoderAgent will read the files itself
+        generated_files = coder.run(feedback=feedback_content, impl_content=None)
         status_msg = "Code generated" if not fix else "Code fixed"
         print(f"{SUCCESS_COLOR}{status_msg} for {len(generated_files)} file(s).{RESET_ALL}")
     except Exception as e:
@@ -390,10 +401,10 @@ async def handle_code_command(project_name: str, fix: bool, execute_command_func
     print(f"\n{SUCCESS_COLOR}Code generation/fixing finished successfully for project '{project_name}'.{RESET_ALL}")
 
 
-async def handle_review_command(project_name: str, execute_command_func):
+async def handle_review_command(project_name: str, projects_dir: str, execute_command_func):
     """Handles the --review command: Runs Reviewer Agent and saves report to review.md."""
     logger.info(f"Handling '--review' action for project: {project_name}")
-    project_path = get_project_path(project_name)
+    project_path = get_project_path(project_name, projects_dir)
     if not os.path.exists(project_path) or not os.path.isdir(project_path):
         logger.error(f"Project '{project_name}' not found.")
         print(f"{ERROR_COLOR}Error: Project '{project_name}' does not exist.")
@@ -457,9 +468,9 @@ async def handle_review_command(project_name: str, execute_command_func):
 
 
 
-def handle_reset_command(project_name: str):
+def handle_reset_command(project_name: str, projects_dir: str):
     logger.info(f"Handling '--reset' action for project: {project_name}")
-    project_path = get_project_path(project_name)
+    project_path = get_project_path(project_name, projects_dir)
     if not os.path.exists(project_path) or not os.path.isdir(project_path): logger.warning(f"Project '{project_name}' not found."); print(f"{WARN_COLOR}Project '{project_name}' not found."); return
     files_to_delete = [ os.path.join(project_path, "docs", f"{dtype}.md") for dtype in DocumenterAgent.SUPPORTED_DOC_TYPES if dtype != 'project_overview' ] + [
         os.path.join(project_path, "docs", "project_docs.md"), os.path.join(project_path, "docs", "impl.md"),
@@ -474,9 +485,9 @@ def handle_reset_command(project_name: str):
     if deleted_count > 0: print(f"{SUCCESS_COLOR}Reset project '{project_name}': Removed generated documentation and requirements.")
     else: print(f"{INFO_COLOR}Project '{project_name}' already reset.")
 
-def handle_scratch_command(project_name: str):
+def handle_scratch_command(project_name: str, projects_dir: str):
     logger.info(f"Handling '--scratch' action for project: {project_name}")
-    project_path = get_project_path(project_name)
+    project_path = get_project_path(project_name, projects_dir)
     if not os.path.exists(project_path) or not os.path.isdir(project_path): logger.warning(f"Project '{project_name}' not found."); print(f"{WARN_COLOR}Project '{project_name}' not found."); return
     files_to_delete = [ os.path.join(project_path, "docs", f"{dtype}.md") for dtype in DocumenterAgent.SUPPORTED_DOC_TYPES if dtype != 'project_overview' ] + [
         os.path.join(project_path, "docs", "project_docs.md"), os.path.join(project_path, "docs", "impl.md"),
@@ -561,44 +572,56 @@ async def main(execute_command_func):
 
     # --- Common Arguments ---
     parser.add_argument('--project', type=str, metavar='NAME', help='Project name (required for most actions)')
-
+    parser.add_argument('--projects-dir', type=str, metavar='PATH', default=DEFAULT_PROJECTS_DIR,
+                        help=f'Directory to store projects (default: {DEFAULT_PROJECTS_DIR})')
     args = parser.parse_args()
     logger.info(f"Parsed arguments: {vars(args)}")
     project_name = args.project
-
+    # Determine the effective projects directory
+    projects_dir = os.path.abspath(args.projects_dir)
+    logger.info(f"Using projects directory: {projects_dir}")
+    # Ensure the projects directory exists if we're not just listing
+    if not args.list and not os.path.exists(projects_dir):
+        try:
+            os.makedirs(projects_dir)
+            logger.info(f"Created projects directory: {projects_dir}")
+        except OSError as e:
+            logger.error(f"Failed to create projects directory '{projects_dir}': {e}")
+            print(f"{ERROR_COLOR}Error: Could not create projects directory '{projects_dir}'.")
+            sys.exit(1)
     # --- Dispatch ---
     try:
-        if args.list: handle_list_command()
-        elif args.idea: handle_idea_command(idea_text=args.idea, project_name=project_name)
+        if args.list: handle_list_command(projects_dir)
+        elif args.idea: handle_idea_command(idea_text=args.idea, project_name=project_name, projects_dir=projects_dir)
         elif args.update_idea:
             if not project_name: parser.error("--update-idea requires --project NAME")
-            handle_update_idea_command(modification_text=args.update_idea, project_name=project_name)
+            handle_update_idea_command(modification_text=args.update_idea, project_name=project_name, projects_dir=projects_dir)
         elif args.research:
             if not project_name: parser.error("--research requires --project NAME")
-            handle_research_command(project_name=project_name)
+            handle_research_command(project_name=project_name, projects_dir=projects_dir)
         elif args.analyze:
             if not project_name: parser.error("--analyze requires --project NAME")
-            handle_analyze_idea_command(project_name=project_name) # Keep internal function name for now
+            handle_analyze_idea_command(project_name=project_name, projects_dir=projects_dir)
         elif args.generate_doc:
             if not project_name: parser.error("--generate-doc requires --project NAME")
             if args.generate_doc not in DocumenterAgent.SUPPORTED_DOC_TYPES: parser.error(f"Invalid --doc-type '{args.generate_doc}'. Supported: {', '.join(DocumenterAgent.SUPPORTED_DOC_TYPES)}")
-            handle_generate_doc_command(doc_type=args.generate_doc, project_name=project_name)
+            handle_generate_doc_command(doc_type=args.generate_doc, project_name=project_name, projects_dir=projects_dir)
         elif args.reset:
             if not project_name: parser.error("--reset requires --project NAME")
-            handle_reset_command(project_name=project_name)
+            handle_reset_command(project_name=project_name, projects_dir=projects_dir)
         elif args.scratch:
             if not project_name: parser.error("--scratch requires --project NAME")
-            handle_scratch_command(project_name=project_name)
+            handle_scratch_command(project_name=project_name, projects_dir=projects_dir)
         # Async handlers
         elif args.update:
             if not project_name: parser.error("--update requires --project NAME")
-            await handle_update_command(modification_text=args.update, project_name=project_name, execute_command_func=execute_command_func)
+            await handle_update_command(modification_text=args.update, project_name=project_name, projects_dir=projects_dir, execute_command_func=execute_command_func)
         elif args.build:
             if not project_name: parser.error("--build requires --project NAME")
-            await handle_build_command(project_name=project_name, execute_command_func=execute_command_func)
+            await handle_build_command(project_name=project_name, projects_dir=projects_dir, execute_command_func=execute_command_func)
         elif args.code:
             if not project_name: parser.error("--code requires --project NAME")
-            await handle_code_command(project_name=project_name, fix=args.fix, execute_command_func=execute_command_func)
+            await handle_code_command(project_name=project_name, fix=args.fix, projects_dir=projects_dir, execute_command_func=execute_command_func)
         else:
             logger.error("No valid action flag provided.")
             parser.print_help()
