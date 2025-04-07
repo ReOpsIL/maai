@@ -15,27 +15,62 @@ The application will follow a modular, agent-based architecture orchestrated by 
 ```mermaid
 graph TD
     A[User CLI Input] --> B(Orchestrator);
-    B -- idea command --> C(Innovator Agent);
-    C -- idea.md --> B;
-    B -- build command --> D(Architect Agent);
-    D -- impl.md --> E(Coder Agent);
-    E -- src/*.py --> F(Reviewer Agent);
-    F -- Feedback --> E;
-    F -- Code OK --> G(Tester Agent);
-    G -- impl.md, src/*.py --> G;
-    G -- test_*.py, Results --> F;
-    F -- Tests Failed --> E;
-    F -- Tests Passed --> H(Documenter Agent);
-    H -- idea.md, impl.md, src/*.py --> H;
-    H -- project_docs.md --> B;
-    B -- list/reset/scratch commands --> I(Filesystem Operations);
 
     subgraph Project Directory (projects/<name>/)
-        C -- writes --> J(docs/idea.md);
-        D -- writes --> K(docs/impl.md);
-        E -- writes --> L(src/*.py);
-        G -- writes --> M(tests/test_*.py);
-        H -- writes --> N(docs/project_docs.md);
+        P_IDEA(docs/idea.md);
+        P_IMPL(docs/impl_*.md);
+        P_INTEG(docs/integ.md);
+        P_SRC(src/*.py);
+        P_REVIEW(docs/review.md);
+        P_TESTS(tests/test_*.py);
+        P_DOCS(docs/*.md);
+    end
+
+    subgraph Agent Interactions
+        B -- "--idea" --> C(Innovator Agent);
+        C -- writes --> P_IDEA;
+
+        B -- "--build" --> D(Architect Agent);
+        D -- reads --> P_IDEA;
+        D -- writes --> P_IMPL;
+        D -- writes --> P_INTEG;
+
+        B -- "--code" --> E(Coder Agent);
+        E -- reads --> P_IMPL;
+        E -- reads --> P_INTEG;
+        E -- writes --> P_SRC;
+
+        B -- "--review" --> F(Reviewer Agent);
+        F -- reads --> P_SRC;
+        F -- reads --> P_IMPL;
+        F -- writes --> P_REVIEW;
+
+        B -- "--code --fix" --> E;
+        E -- reads --> P_REVIEW; # Coder reads review for fix
+        E -- writes --> P_SRC; # Coder updates code
+        E -- notifies --> D; # Coder notifies Architect
+        D -- reads --> P_REVIEW; # Architect reads review
+        D -- reads --> P_SRC; # Architect reads updated code
+        D -- writes --> P_IMPL; # Architect potentially updates impl
+        D -- writes --> P_INTEG; # Architect potentially updates integ
+
+        B -- "--generate-doc" --> H(Documenter Agent);
+        H -- reads --> P_IDEA;
+        H -- reads --> P_IMPL;
+        H -- reads --> P_SRC;
+        H -- writes --> P_DOCS;
+
+        B -- "--update" --> D;
+        D -- updates --> P_IMPL;
+        D -- updates --> P_INTEG;
+        D -- notifies --> E;
+        E -- updates --> P_SRC;
+        E -- notifies --> G(Tester Agent); # Assuming Tester is part of --update
+        G -- updates --> P_TESTS;
+        G -- notifies --> H;
+        H -- updates --> P_DOCS;
+
+        B -- "list/reset/scratch" --> I(Filesystem Operations);
     end
 ```
 
@@ -52,9 +87,10 @@ graph TD
 ## 4. Orchestrator (`src/orchestrator.py`)
 
 *   **Initialization:** Load environment variables (e.g., `GEMINI_API_KEY`).
-*   **Argument Parsing:** Define subparsers for `list`, `idea`, `build`, `reset`, `scratch` using `argparse`.
+*   **Argument Parsing:** Define arguments for `list`, `idea`, `build`, `code`, `review`, `reset`, `scratch`, `update`, `generate-doc`, etc., using `argparse`. Include the `--fix` flag for use with `--code`.
     *   `idea`: Takes `<text>` and optional `--project <name>`.
-    *   `build`, `reset`, `scratch`: Require `--project <name>`.
+    *   `build`, `code`, `review`, `reset`, `scratch`, `update`, `generate-doc`: Require `--project <name>`.
+    *   `fix`: Boolean flag, only valid with `--code`.
 *   **Project Management:**
     *   Functions to create project directories (`projects/<name>/{docs,src,tests}`).
     *   Functions to generate project names from idea text (slugify).
@@ -63,7 +99,11 @@ graph TD
 *   **Command Handling:**
     *   `list`: Call project listing function.
     *   `idea`: Instantiate and run `InnovatorAgent`.
-    *   `build`: Instantiate and run agents sequentially (Architect -> Coder -> Reviewer -> Tester -> Documenter), handling the feedback loops and file I/O. Pass project context (paths) to agents.
+    *   `build`: Instantiate and run `ArchitectAgent`.
+    *   `code`: Instantiate and run `CoderAgent`. If `--fix` is present, read `docs/review.md` and pass feedback to `CoderAgent`, then notify `ArchitectAgent`.
+    *   `review`: Instantiate and run `ReviewerAgent`.
+    *   `update`: Instantiate and run sequence: `ArchitectAgent` -> `CoderAgent` -> `TesterAgent` -> `DocumenterAgent` based on general modification text.
+    *   `generate-doc`: Instantiate and run `DocumenterAgent`.
     *   `reset`, `scratch`: Call respective project management functions.
 *   **Error Handling:** Implement try-except blocks for file operations, API calls, and agent execution failures. Provide informative error messages.
 *   **Logging:** Use the `logging` module for progress tracking and debugging.
@@ -103,53 +143,46 @@ class BaseAgent(ABC):
 
 ### 5.2. Architect Agent (`src/agents/architect.py`)
 
-*   **Input:** Path to `idea.md`.
+*   **Input:** Path to `idea.md`, or modification text (from user or `review.md`) + context from existing `impl_*.md`/`integ.md`.
 *   **Process:**
-    *   Read `idea.md`.
-    *   Analyze the requirements (potentially using an LLM with a specific prompt focused on architecture, or rule-based analysis for simpler projects).
-    *   Define:
-        *   High-level components/modules.
-        *   Key data structures.
-        *   Function signatures (high-level).
-        *   Interaction flow between components.
-        *   Technology choices (if not already implied).
-    *   Format the output as Markdown.
-*   **Output:** Writes content to `projects/<name>/docs/impl.md`.
+    *   Read `idea.md` and/or existing plans/modification text.
+    *   Analyze requirements/feedback using LLM.
+    *   Define/update:
+        *   Components, modules, classes, functions.
+        *   Data structures.
+        *   Interaction flows.
+        *   Technology stack.
+        *   Testing strategy.
+    *   Format output using delimiters (`<<<COMPONENT: ...>>>`, `<<<INTEGRATION>>>`).
+*   **Output:** Writes content to `projects/<name>/docs/impl_*.md` and `projects/<name>/docs/integ.md`.
 
 ### 5.3. Coder Agent (`src/agents/coder.py`)
 
-*   **Input:** Path to `impl.md`, potential feedback from Reviewer/Tester.
+*   **Input:** Paths to `impl_*.md`, `integ.md`. Optional feedback from `docs/review.md` (if `--fix` is used).
 *   **Process:**
-    *   Read `impl.md`.
-    *   Parse the implementation details (potentially using an LLM prompted to generate Python code based on the spec, or structured parsing if `impl.md` follows a strict format).
-    *   If feedback is provided, incorporate it into the code generation/modification process.
-    *   Generate Python code files (`.py`) and save them into `projects/<name>/src/`. Ensure basic syntax validity.
-*   **Output:** Paths to generated/modified source files.
+    *   Read implementation plans.
+    *   Parse details (potentially using LLM).
+    *   If feedback is provided (via `--fix`), incorporate it into the code generation/modification.
+    *   Generate/update Python code files (`.py`) and save them into `projects/<name>/src/`.
+*   **Output:** Paths to generated/modified source files. Notifies Architect if run with `--fix`.
 
 ### 5.4. Reviewer Agent (`src/agents/reviewer.py`)
 
-*   **Input:** Paths to source code files, path to `impl.md`.
+*   **Input:** Paths to source code files (`src/*.py`), paths to implementation plans (`impl_*.md`).
 *   **Process:**
-    *   **Static Analysis:** Run `pylint` and `flake8` using `subprocess`. Capture and parse results.
-    *   **Specification Adherence:** Compare code structure/functionality against `impl.md` (can be complex; might involve LLM analysis or keyword/structure checking).
-    *   **Logic Review (Optional):** Use an LLM to review code snippets for potential bugs or improvements based on the context from `impl.md`.
-    *   **Decision:**
-        *   If issues found: Generate structured feedback (e.g., file, line number, issue description). Trigger Coder Agent.
-        *   If code looks okay: Trigger Tester Agent.
-*   **Output:** Feedback data structure (internal), trigger signal (Coder or Tester).
+    *   Read source code and implementation plans.
+    *   Use LLM to review code against the plan for correctness, adherence, best practices, etc.
+    *   Format feedback clearly if issues are found.
+*   **Output:** Writes feedback to `projects/<name>/docs/review.md` if issues are found. Removes the file otherwise.
 
 ### 5.5. Tester Agent (`src/agents/tester.py`)
 
-*   **Input:** Paths to source code files, path to `impl.md`.
+*   **Input:** Paths to source code files (`src/*.py`), paths to implementation plans (`impl_*.md`).
 *   **Process:**
-    *   **Test Case Generation:** Analyze `impl.md` and source code (potentially LLM-assisted) to generate `unittest` or `pytest` test cases. Focus on function inputs/outputs and component interactions described in `impl.md`.
+    *   Analyze plans and code (potentially LLM-assisted) to generate `pytest` test cases.
     *   Write test cases to `projects/<name>/tests/test_*.py`.
-    *   **Test Execution:** Run tests using `subprocess` (e.g., `python -m unittest discover projects/<name>/tests` or `pytest projects/<name>/tests`).
-    *   **Result Parsing:** Capture and parse test runner output.
-    *   **Decision:**
-        *   If tests fail: Generate feedback (failed test names, errors). Trigger Reviewer/Coder Agent.
-        *   If tests pass: Signal success to the Orchestrator/Reviewer.
-*   **Output:** Paths to test files, test results (pass/fail), feedback data structure (internal), trigger signal (Coder/Reviewer or Success).
+    *   *(Test execution is now typically handled manually or by a separate CI/CD process after code generation/review)*.
+*   **Output:** Paths to generated/modified test files.
 
 ### 5.6. Documenter Agent (`src/agents/documenter.py`)
 
@@ -173,7 +206,9 @@ maai/
 │   └── <project_name>/
 │       ├── docs/
 │       │   ├── idea.md
-│       │   ├── impl.md
+│       │   ├── impl_*.md
+│       │   ├── integ.md
+│       │   ├── review.md
 │       │   └── project_docs.md
 │       ├── src/
 │       │   └── *.py
@@ -224,15 +259,15 @@ maai/
 ## 10. Implementation Steps
 
 1.  Set up the basic project structure and `requirements.txt`.
-2.  Implement the `Orchestrator` CLI argument parsing and basic project management functions (`list`, directory creation).
-3.  Implement the `InnovatorAgent` with Gemini API integration and the `idea` command.
-4.  Implement the `ArchitectAgent` and integrate it into the `build` command.
-5.  Implement the `CoderAgent` (initially simple, perhaps rule-based or basic LLM call).
-6.  Implement the `ReviewerAgent` with static analysis (`pylint`/`flake8`).
-7.  Implement the `TesterAgent` (basic test generation/execution).
-8.  Implement the `DocumenterAgent`.
-9.  Refine the `build` command logic in the `Orchestrator` to handle the full agent pipeline and basic feedback loops.
+2.  Implement the `Orchestrator` CLI argument parsing (`argparse`) including new commands (`build`, `code`, `review`, `fix`) and project management functions.
+3.  Implement the `InnovatorAgent` (`--idea`).
+4.  Implement the `ArchitectAgent` (`--build`, update logic).
+5.  Implement the `CoderAgent` (`--code`, `--fix` logic).
+6.  Implement the `ReviewerAgent` (`--review`, writing to `review.md`).
+7.  Implement the `TesterAgent` (test generation, execution decoupled).
+8.  Implement the `DocumenterAgent` (`--generate-doc`).
+9.  Integrate agent calls into the `Orchestrator` command handlers.
 10. Implement `reset` and `scratch` commands.
-11. Add robust error handling and logging.
+11. Add robust error handling and logging throughout.
 12. Write tests for the MAAI application itself.
-13. Refine agent capabilities, potentially adding more sophisticated LLM interactions and handling the feedback loops more intelligently.
+13. Refine agent prompts and logic for better results and handling of the `--code --fix` workflow.

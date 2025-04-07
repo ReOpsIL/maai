@@ -273,131 +273,188 @@ async def handle_update_command(modification_text: str, project_name: str, execu
 
 
 async def handle_build_command(project_name: str, execute_command_func):
-    logger.info(f"Handling '--build' action for project: {project_name}")
+    """Handles the --build command: Runs the Architect Agent to generate architecture docs."""
+    logger.info(f"Handling '--build' action (Architect only) for project: {project_name}")
     project_path = get_project_path(project_name)
-    if not os.path.exists(project_path) or not os.path.isdir(project_path): logger.error(f"Project '{project_name}' not found."); print(f"{ERROR_COLOR}Error: Project '{project_name}' does not exist."); return
+    if not os.path.exists(project_path) or not os.path.isdir(project_path):
+        logger.error(f"Project '{project_name}' not found.")
+        print(f"{ERROR_COLOR}Error: Project '{project_name}' does not exist.")
+        return
     idea_md_path = os.path.join(project_path, "docs", "idea.md")
-    if not os.path.exists(idea_md_path): logger.error(f"Cannot build: 'docs/idea.md' not found."); print(f"{ERROR_COLOR}Error: 'docs/idea.md' not found."); return
-    logger.info(f"Starting build pipeline for project '{project_name}'...")
-    pipeline_steps = 6
+    if not os.path.exists(idea_md_path):
+        logger.error(f"Cannot build architecture: 'docs/idea.md' not found.")
+        print(f"{ERROR_COLOR}Error: 'docs/idea.md' not found. Please generate the idea first.")
+        return
 
-    # === Step 1: Architect Agent ===
-    print(f"{STEP_COLOR}Step 1/{pipeline_steps}: Generating architecture plan...{RESET_ALL}")
+    print(f"{STEP_COLOR}Running Architect Agent to generate/update architecture plan...{RESET_ALL}")
     architect = ArchitectAgent(project_name=project_name, project_path=project_path)
-    impl_md_path, impl_content = None, None
     try:
-        impl_md_path = architect.run()
-        impl_content = architect._read_file(impl_md_path)
-        if not impl_content: raise IOError("Failed to read generated impl.md content.")
-        print(f"{SUCCESS_COLOR}Architecture plan generated: {impl_md_path}{RESET_ALL}")
-    except Exception as e: logger.error(f"Architect Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Build failed at Architect stage: {e}"); return
-    if not impl_md_path or not os.path.exists(impl_md_path): logger.error(f"impl.md not found after Architect run."); print(f"{ERROR_COLOR}Build failed: Implementation plan not created."); return
+        # Assuming architect.run() generates or updates impl.md and potentially other docs
+        # Architect agent now returns a list of paths
+        impl_paths = architect.run()
+        if not impl_paths: # Check if the list is empty
+             raise FileNotFoundError("Architect agent did not produce any implementation files.")
+        # Optional: Check if all returned paths exist
+        # if not all(os.path.exists(p) for p in impl_paths):
+        #     raise FileNotFoundError("Architect agent returned paths to files that do not exist.")
+        print(f"{SUCCESS_COLOR}Architecture plan generated/updated: {', '.join(impl_paths)}{RESET_ALL}")
+        # Optionally read and log content if needed for subsequent steps in a different flow
+        # impl_content = architect._read_file(impl_md_path)
+        # if not impl_content: raise IOError("Failed to read generated impl.md content.")
+    except Exception as e:
+        logger.error(f"Architect Agent failed during --build: {e}", exc_info=True)
+        print(f"{ERROR_COLOR}Architecture generation failed: {e}")
+        return
 
-    # === Step 2: Setup Dependencies & Virtual Environment ===
-    logger.info("Setting up dependencies and virtual environment...")
-    dependency_commands, requirements_path = [], None
-    venv_python_path = None
+    logger.info(f"Architecture generation (--build) completed for project '{project_name}'.")
+    print(f"\n{SUCCESS_COLOR}Architecture generation finished successfully for project '{project_name}'.{RESET_ALL}")
+
+
+# (Removed build pipeline steps: Dependencies, Coder, Reviewer, Tester, Documenter)
+
+async def handle_code_command(project_name: str, fix: bool, execute_command_func):
+    """Handles the --code command: Runs Coder Agent, optionally with --fix using review.md."""
+    logger.info(f"Handling '--code' action for project: {project_name}, Fix mode: {fix}")
+    project_path = get_project_path(project_name)
+    if not os.path.exists(project_path) or not os.path.isdir(project_path):
+        logger.error(f"Project '{project_name}' not found.")
+        print(f"{ERROR_COLOR}Error: Project '{project_name}' does not exist.")
+        return
+
+    impl_md_path = os.path.join(project_path, "docs", "impl.md")
+    if not os.path.exists(impl_md_path):
+        logger.error(f"Cannot code: 'docs/impl.md' not found.")
+        print(f"{ERROR_COLOR}Error: 'docs/impl.md' not found. Please run --build first.")
+        return
+
+    # Read implementation plan content
+    impl_content = None
     try:
-        dependency_commands, requirements_path = _generate_dependency_commands(project_path, impl_content)
-        if dependency_commands:
-            print(f"{STEP_COLOR}Step 2/{pipeline_steps}: Setting up virtual environment ({VENV_DIR_NAME}) and dependencies...{RESET_ALL}")
-            for cmd_info in dependency_commands:
-                 print(f"{INFO_COLOR}Executing: {cmd_info['command']}{RESET_ALL}")
-                 result = await execute_command_func(command=cmd_info['command'], cwd=cmd_info['cwd'])
-                 stderr_output = result.get("stderr", "")
-                 # Check for actual errors in stderr, ignoring common warnings
-                 is_error = stderr_output and "warning" not in stderr_output.lower()
-                 if is_error:
-                     logger.error(f"Command failed: {cmd_info['command']}\nSTDERR:\n{stderr_output}")
-                     print(f"{ERROR_COLOR}Build failed during dependency setup: {stderr_output}")
-                     return
-                 elif stderr_output: logger.warning(f"Command '{cmd_info['command']}' produced warnings:\n{stderr_output}")
-                 logger.info(f"Command successful: {cmd_info['command']}")
+        # Use a base agent or utility to read the file
+        temp_reader = DocumenterAgent(project_name, project_path) # Reusing agent for its read method
+        impl_content = temp_reader._read_file(impl_md_path)
+        if not impl_content: raise IOError("Implementation plan file is empty.")
+    except Exception as e:
+        logger.error(f"Failed to read implementation plan '{impl_md_path}': {e}", exc_info=True)
+        print(f"{ERROR_COLOR}Error reading implementation plan: {e}")
+        return
 
-            # Verify venv python path after commands
-            venv_python_path = _get_venv_python_path(project_path)
-            if not venv_python_path:
-                await asyncio.sleep(1)
-                venv_python_path = _get_venv_python_path(project_path)
-                if not venv_python_path:
-                    logger.error(f"Could not find python in venv at {os.path.join(project_path, VENV_DIR_NAME)}.")
-                    print(f"{ERROR_COLOR}Build failed: Could not find venv python executable after setup attempt.")
-                    return
-            logger.info(f"Found venv python at: {venv_python_path}")
-            print(f"{SUCCESS_COLOR}Virtual environment and dependencies installed.{RESET_ALL}")
-        else: print(f"{STEP_COLOR}Step 2/{pipeline_steps}: No external dependencies identified. Skipping venv setup.{RESET_ALL}")
-    except Exception as e: logger.error(f"Failed to setup dependencies: {e}", exc_info=True); print(f"{ERROR_COLOR}Build failed during dependency setup: {e}"); return
+    feedback_content = None
+    if fix:
+        review_md_path = os.path.join(project_path, "docs", "review.md")
+        if not os.path.exists(review_md_path):
+            logger.error(f"Cannot apply fix: 'docs/review.md' not found.")
+            print(f"{ERROR_COLOR}Error: 'docs/review.md' not found. Please run --review first.")
+            return
+        try:
+            temp_reader = DocumenterAgent(project_name, project_path) # Reusing agent for its read method
+            feedback_content = temp_reader._read_file(review_md_path)
+            if not feedback_content:
+                 logger.warning(f"Review file '{review_md_path}' is empty. Proceeding without feedback.")
+                 print(f"{WARN_COLOR}Warning: Review file is empty.")
+            else:
+                 print(f"{INFO_COLOR}Applying fixes based on 'docs/review.md'...{RESET_ALL}")
+        except Exception as e:
+            logger.error(f"Failed to read review file '{review_md_path}': {e}", exc_info=True)
+            print(f"{ERROR_COLOR}Error reading review file: {e}")
+            return
 
-    # === Step 3: Coder Agent ===
-    print(f"{STEP_COLOR}Step 3/{pipeline_steps}: Generating code...{RESET_ALL}")
+    # === Run Coder Agent ===
+    print(f"{STEP_COLOR}Running Coder Agent...{RESET_ALL}")
     coder = CoderAgent(project_name=project_name, project_path=project_path)
     generated_files = []
     try:
-        generated_files = coder.run(feedback=None, impl_content=impl_content)
-        print(f"{SUCCESS_COLOR}Code generated for {len(generated_files)} file(s).{RESET_ALL}")
-    except Exception as e: logger.error(f"Coder Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Build failed at Coder stage: {e}"); return
+        generated_files = coder.run(feedback=feedback_content, impl_content=impl_content)
+        status_msg = "Code generated" if not fix else "Code fixed"
+        print(f"{SUCCESS_COLOR}{status_msg} for {len(generated_files)} file(s).{RESET_ALL}")
+    except Exception as e:
+        logger.error(f"Coder Agent failed: {e}", exc_info=True)
+        fail_msg = "Code generation" if not fix else "Code fixing"
+        print(f"{ERROR_COLOR}{fail_msg} failed: {e}")
+        return
 
-    # === Step 4: Coder-Reviewer Loop ===
-    print(f"{STEP_COLOR}Step 4/{pipeline_steps}: Reviewing code (using AI)...{RESET_ALL}") # Updated message
-    reviewer = ReviewerAgent(project_name=project_name, project_path=project_path)
-    max_review_attempts, review_passed, feedback = 3, False, None
-    for attempt in range(max_review_attempts):
-        print(f"{INFO_COLOR}Review Attempt {attempt + 1}/{max_review_attempts}...{RESET_ALL}")
+    # === Notify Architect Agent if fixing based on review ===
+    if fix and feedback_content:
+        print(f"{STEP_COLOR}Checking if architecture needs update based on review feedback...{RESET_ALL}")
+        architect = ArchitectAgent(project_name=project_name, project_path=project_path)
         try:
-            # Pass impl_content to the AI reviewer
-            review_passed, feedback = reviewer.run(generated_files=generated_files, impl_content=impl_content)
-            if review_passed: print(f"{SUCCESS_COLOR}AI Code review passed.{RESET_ALL}"); break
-            else:
-                print(f"{WARN_COLOR}AI Code review found issues. Attempting to fix...{RESET_ALL}"); print(f"---\n{feedback}\n---")
-                generated_files = coder.run(feedback=feedback, impl_content=impl_content) # Pass feedback to coder
-                if not generated_files and attempt < max_review_attempts -1: logger.error("Coder produced no files after feedback."); print(f"{ERROR_COLOR}Error: Coder failed after feedback."); return
-        except Exception as e: logger.error(f"Review/Coder loop failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Build failed during Review/Code cycle: {e}"); return
-    if not review_passed: logger.error(f"Review failed after {max_review_attempts} attempts."); print(f"{ERROR_COLOR}Build failed: Review did not pass."); return
+            # Run architect in update mode, passing review feedback as modification text
+            # The architect agent needs to be designed to handle this input appropriately.
+            updated_impl_path = architect.run(modification_text=f"Review feedback:\n{feedback_content}\n\nUpdate the architecture if necessary based on this feedback and the potentially changed code.", update_mode=True)
+            print(f"{SUCCESS_COLOR}Architecture check completed. Plan potentially updated: {updated_impl_path}{RESET_ALL}")
+        except Exception as e:
+            logger.error(f"Architect Agent check/update failed after code fix: {e}", exc_info=True)
+            print(f"{WARN_COLOR}Warning: Code fixed, but failed to check/update architecture: {e}{RESET_ALL}")
 
-    # === Step 5: Tester Agent ===
-    print(f"{STEP_COLOR}Step 5/{pipeline_steps}: Generating and running tests...{RESET_ALL}")
-    tester = TesterAgent(project_name=project_name, project_path=project_path)
-    test_files_generated = []
+    logger.info(f"Code generation/fixing (--code) completed for project '{project_name}'.")
+    print(f"\n{SUCCESS_COLOR}Code generation/fixing finished successfully for project '{project_name}'.{RESET_ALL}")
+
+
+async def handle_review_command(project_name: str, execute_command_func):
+    """Handles the --review command: Runs Reviewer Agent and saves report to review.md."""
+    logger.info(f"Handling '--review' action for project: {project_name}")
+    project_path = get_project_path(project_name)
+    if not os.path.exists(project_path) or not os.path.isdir(project_path):
+        logger.error(f"Project '{project_name}' not found.")
+        print(f"{ERROR_COLOR}Error: Project '{project_name}' does not exist.")
+        return
+
+    impl_md_path = os.path.join(project_path, "docs", "impl.md")
+    if not os.path.exists(impl_md_path):
+        logger.error(f"Cannot review: 'docs/impl.md' not found.")
+        print(f"{ERROR_COLOR}Error: 'docs/impl.md' not found. Please run --build first.")
+        return
+
+    src_path = os.path.join(project_path, "src")
+    if not os.path.exists(src_path) or not os.listdir(src_path):
+         logger.warning(f"Source directory '{src_path}' is empty or missing. Review may be limited.")
+         print(f"{WARN_COLOR}Warning: Project source directory is empty or missing.")
+         # Decide if review should proceed or stop
+         # return # Option: Stop if no code exists
+
+    # Read implementation plan content
+    impl_content = None
     try:
-        test_files_generated = tester.run(impl_content=impl_content)
-        print(f"{INFO_COLOR}Tests generated for {len(test_files_generated)} file(s).{RESET_ALL}")
-        if test_files_generated:
-             print(f"{INFO_COLOR}Running tests...{RESET_ALL}")
-             if not venv_python_path:
-                  venv_python_path = _get_venv_python_path(project_path)
-                  if not venv_python_path: logger.error(f"Venv python not found before tests."); print(f"{ERROR_COLOR}Build failed: Cannot find venv python."); return
-             pytest_cmd = f"{venv_python_path} -m pytest -v"
-             logger.info(f"Executing test command: {pytest_cmd} in {project_path}")
-             result = await execute_command_func(command=pytest_cmd, cwd=project_path)
-             stdout_lower, stderr_lower = result.get("stdout", "").lower(), result.get("stderr", "").lower()
-             process_returncode = result.get("returncode", 0)
-             is_failure = False
-             if result.get("stderr"): is_failure = True
-             elif ("failed" in stdout_lower or "error" in stdout_lower) and " 0 errors" not in stdout_lower and " 0 error" not in stdout_lower: is_failure = True
-             no_tests_ran = "no tests ran" in stdout_lower or ("collected 0 items" in stdout_lower and process_returncode == 5)
+        temp_reader = DocumenterAgent(project_name, project_path)
+        impl_content = temp_reader._read_file(impl_md_path)
+        if not impl_content: raise IOError("Implementation plan file is empty.")
+    except Exception as e:
+        logger.error(f"Failed to read implementation plan '{impl_md_path}': {e}", exc_info=True)
+        print(f"{ERROR_COLOR}Error reading implementation plan: {e}")
+        return
 
-             if is_failure and not no_tests_ran:
-                 logger.error(f"Pytest failed:\nSTDOUT:\n{result.get('stdout', '')}\nSTDERR:\n{result.get('stderr', '')}")
-                 print(f"{ERROR_COLOR}Build failed: Tests did not pass.\nOutput:\n{result.get('stdout', '')}\n{result.get('stderr', '')}"); return
-             elif no_tests_ran:
-                  logger.warning("Pytest reported no tests were collected or ran.")
-                  print(f"{WARN_COLOR}Tests passed (or no tests found).{RESET_ALL}")
-             else:
-                 logger.info("Pytest execution successful.")
-                 print(f"{SUCCESS_COLOR}Tests passed.{RESET_ALL}")
-        else: print(f"{WARN_COLOR}Skipping test execution (no tests generated).{RESET_ALL}")
-    except Exception as e: logger.error(f"Tester Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Build failed during Test stage: {e}"); return
-
-    # === Step 6: Documenter Agent ===
-    print(f"{STEP_COLOR}Step 6/{pipeline_steps}: Generating project overview documentation...{RESET_ALL}")
-    documenter = DocumenterAgent(project_name=project_name, project_path=project_path)
+    # === Run Reviewer Agent ===
+    print(f"{STEP_COLOR}Running Reviewer Agent...{RESET_ALL}")
+    reviewer = ReviewerAgent(project_name=project_name, project_path=project_path)
+    review_md_path = os.path.join(project_path, "docs", "review.md")
     try:
-        docs_path = documenter.run(doc_type='project_overview')
-        print(f"{SUCCESS_COLOR}Project overview documentation generated: {docs_path}{RESET_ALL}")
-    except Exception as e: logger.error(f"Documenter Agent failed: {e}", exc_info=True); print(f"{WARN_COLOR}Warning: Build completed, but failed to generate documentation: {e}{RESET_ALL}")
+        # Assuming reviewer.run now handles writing the review to 'docs/review.md'
+        # and potentially returns a summary or status.
+        # We might need to adjust the ReviewerAgent's run method signature and logic.
+        # For now, let's assume it takes impl_content and writes the file.
+        # The original run returned (passed, feedback), we might need to adapt.
+        # Let's call it assuming it performs the review and writes the file.
+        # We might need to modify the agent later.
+        review_result = reviewer.run(impl_content=impl_content) # Pass impl_content
 
-    logger.info(f"Build pipeline completed successfully for project '{project_name}'.")
-    print(f"\n{SUCCESS_COLOR}Build finished successfully for project '{project_name}'.{RESET_ALL}")
+        # Check if the review file was created
+        if os.path.exists(review_md_path):
+            print(f"{SUCCESS_COLOR}Code review completed. Report saved to: {review_md_path}{RESET_ALL}")
+            # Optionally print summary if reviewer.run returns one
+            # if isinstance(review_result, str): print(review_result)
+        else:
+             logger.error(f"Reviewer agent ran but did not create '{review_md_path}'.")
+             print(f"{ERROR_COLOR}Review failed: Report file was not generated.")
+             return
+
+    except Exception as e:
+        logger.error(f"Reviewer Agent failed: {e}", exc_info=True)
+        print(f"{ERROR_COLOR}Code review failed: {e}")
+        return
+
+    logger.info(f"Review (--review) completed for project '{project_name}'.")
+    print(f"\n{SUCCESS_COLOR}Review finished successfully for project '{project_name}'.{RESET_ALL}")
+
 
 
 def handle_reset_command(project_name: str):
@@ -492,10 +549,13 @@ async def main(execute_command_func):
     action_group.add_argument('--idea', type=str, metavar='TEXT', help='Generate new project idea')
     action_group.add_argument('--update-idea', type=str, metavar='TEXT', help='Update existing project idea (requires --project)')
     action_group.add_argument('--research', action='store_true', help='Perform technical research for idea (requires --project)')
-    action_group.add_argument('--analyze-idea', action='store_true', help='Perform market analysis for idea (requires --project)')
+    action_group.add_argument('--analyze', action='store_true', help='Perform market analysis for idea (requires --project)')
     action_group.add_argument('--update', type=str, metavar='TEXT', help='Update impl, code, tests, docs based on instructions (requires --project)')
     action_group.add_argument('--generate-doc', type=str, metavar='TYPE', help=f"Generate specific doc (requires --project).\nTypes: {', '.join(sorted(DocumenterAgent.SUPPORTED_DOC_TYPES))}")
-    action_group.add_argument('--build', action='store_true', help='Run full build pipeline (requires --project)')
+    action_group.add_argument('--build', action='store_true', help='Generate/update architecture docs (impl.md) (requires --project)')
+    action_group.add_argument('--code', action='store_true', help='Generate/update code based on impl.md (requires --project)')
+    action_group.add_argument('--fix', action='store_true', help='Generate/update code based on impl.md (requires --project)')
+    action_group.add_argument('--review', action='store_true', help='Review generated code and create review.md (requires --project)')
     action_group.add_argument('--reset', action='store_true', help='Reset generated files (docs, reqs) (requires --project)')
     action_group.add_argument('--scratch', action='store_true', help='Reset + clear src/tests/venv (requires --project)')
 
@@ -516,9 +576,9 @@ async def main(execute_command_func):
         elif args.research:
             if not project_name: parser.error("--research requires --project NAME")
             handle_research_command(project_name=project_name)
-        elif args.analyze_idea:
-            if not project_name: parser.error("--analyze-idea requires --project NAME")
-            handle_analyze_idea_command(project_name=project_name)
+        elif args.analyze:
+            if not project_name: parser.error("--analyze requires --project NAME")
+            handle_analyze_idea_command(project_name=project_name) # Keep internal function name for now
         elif args.generate_doc:
             if not project_name: parser.error("--generate-doc requires --project NAME")
             if args.generate_doc not in DocumenterAgent.SUPPORTED_DOC_TYPES: parser.error(f"Invalid --doc-type '{args.generate_doc}'. Supported: {', '.join(DocumenterAgent.SUPPORTED_DOC_TYPES)}")
@@ -536,6 +596,9 @@ async def main(execute_command_func):
         elif args.build:
             if not project_name: parser.error("--build requires --project NAME")
             await handle_build_command(project_name=project_name, execute_command_func=execute_command_func)
+        elif args.code:
+            if not project_name: parser.error("--code requires --project NAME")
+            await handle_code_command(project_name=project_name, fix=args.fix, execute_command_func=execute_command_func)
         else:
             logger.error("No valid action flag provided.")
             parser.print_help()

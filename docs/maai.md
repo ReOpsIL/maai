@@ -28,19 +28,19 @@ The application consists of the following agents, most utilizing a Generative AI
     *   **Output:** `docs/market_analysis.md`
 
 4.  **Architect Agent:**
-    *   **Input:** The `idea.md` document or modification instructions + existing `impl.md`.
-    *   **Process:** Designs `impl.md` based on `idea.md` or updates an existing `impl.md` based on instructions.
-    *   **Output:** `docs/impl.md`
+    *   **Input:** The `idea.md` document or modification instructions (e.g., from user or review feedback) + existing `impl.md` (for context).
+    *   **Process:** Designs `impl.md` based on `idea.md` or updates an existing `impl.md` based on instructions/feedback.
+    *   **Output:** `docs/impl_*.md` and `docs/integ.md` (or potentially just `docs/impl.md` depending on agent implementation).
 
 5.  **Coder Agent:**
-    *   **Input:** The `impl.md` document, optional feedback, or modification instructions + existing code.
-    *   **Process:** Generates Python code (`src/`) based on `impl.md` or updates existing code based on instructions and the latest `impl.md`.
+    *   **Input:** The `impl.md` document, optional feedback (from `docs/review.md` via `--fix`), or general modification instructions + existing code.
+    *   **Process:** Generates Python code (`src/`) based on `impl.md` or updates existing code based on instructions/feedback and the latest `impl.md`.
     *   **Output:** Python source files in `src/`.
 
 6.  **Reviewer Agent:**
     *   **Input:** Python source code (`src/`) and the implementation plan (`impl.md`).
-    *   **Process:** Uses the LLM to review the generated code for adherence to the plan, correctness, best practices, clarity, and basic security considerations. Provides feedback for the Coder Agent if issues are found.
-    *   **Output:** Review feedback (used internally in build).
+    *   **Process:** Uses the LLM to review the generated code for adherence to the plan, correctness, best practices, etc.
+    *   **Output:** Writes feedback to `docs/review.md` if issues are found. Removes the file if the review passes.
 
 7.  **Tester Agent:**
     *   **Input:** `impl.md`, source code (`src/`), or modification instructions + existing tests.
@@ -73,19 +73,22 @@ The application is controlled via `python src/orchestrator.py` followed by flags
     *   Runs **Research Agent** using `docs/idea.md` -> `docs/research_summary.md`.
 
 *   **Analyze Idea (Market):**
-    *   `python src/orchestrator.py --analyze-idea --project <name>`
+    *   `python src/orchestrator.py --analyze --project <name>`
     *   Runs **Market Analyst Agent** using `docs/idea.md` -> `docs/market_analysis.md`.
 
-*   **Full Build Pipeline:**
+*   **Generate Architecture:**
     *   `python src/orchestrator.py --build --project <name>`
-    *   Executes the main development pipeline:
-        1.  **Architect** (creates `impl.md`)
-        2.  **Dependency Setup:** (creates `requirements.txt`, `./.venv/`, installs deps)
-        3.  **Coder** (creates `src/*.py`)
-        4.  **Reviewer/Coder Loop** (refines code using LLM review feedback)
-        5.  **Tester** (creates `tests/test_*.py` & runs `pytest` in `./.venv/`)
-        6.  **Documenter** (creates `docs/project_docs.md`)
-    *   Stops on major errors.
+    *   Runs **Architect Agent** using `docs/idea.md` -> `docs/impl_*.md`, `docs/integ.md`.
+
+*   **Generate Code:**
+    *   `python src/orchestrator.py --code --project <name>`
+    *   Runs **Coder Agent** using `docs/impl_*.md` -> `src/*.py`.
+    *   `python src/orchestrator.py --code --fix --project <name>`
+    *   Runs **Coder Agent** using `docs/impl_*.md` and feedback from `docs/review.md` to update `src/*.py`. Also notifies **Architect Agent** to check if architecture docs need updates based on the review.
+
+*   **Review Code:**
+    *   `python src/orchestrator.py --review --project <name>`
+    *   Runs **Reviewer Agent** using `src/*.py` and `docs/impl_*.md` -> `docs/review.md` (if issues found).
 
 **Update Commands (for iterative refinement):**
 
@@ -93,23 +96,20 @@ The application is controlled via `python src/orchestrator.py` followed by flags
     *   `python src/orchestrator.py --update-idea "Modification instructions" --project <name>`
     *   Runs **Innovator Agent** to refine `docs/idea.md`.
 
-*   **Update Implementation, Code, Tests, and Docs:**
-    *   `python src/orchestrator.py --update "Modification instructions" --project <name>`
-    *   Runs a sequence to refine the project based on instructions:
-        1.  **Architect** (updates `impl.md`)
-        2.  **Coder** (updates `src/*.py` based on new `impl.md` and instructions)
-        3.  **Tester** (updates `tests/*.py` based on new `impl.md`, new code, and instructions)
-        4.  **Documenter** (regenerates `docs/project_docs.md` based on all updated artifacts)
-    *   Note: This does *not* automatically run the Reviewer or execute tests. Run `--build` afterwards for full validation.
+*   **General Update (Implementation, Code, Tests, Docs):**
+    *   `python src/orchestrator.py --update "General modification instructions" --project <name>`
+    *   Runs a sequence to refine the project based on *general* instructions (distinct from the review/fix cycle):
+        1.  **Architect** (updates architecture docs)
+        2.  **Coder** (updates `src/*.py`)
+        3.  **Tester** (updates `tests/*.py`)
+        4.  **Documenter** (regenerates `docs/project_overview.md`)
+    *   Note: This uses the general modification text for all agents. For targeted fixes based on review, use `--review` then `--code --fix`.
 
-*   **Update Market Analysis:** (Kept separate as it's analysis, not core implementation)
-    *   `python src/orchestrator.py --update-analysis "Modification instructions" --project <name>`
-    *   Runs **Market Analyst Agent** to refine `docs/market_analysis.md`.
 
 **Documentation Generation:**
 
 *   **Generate Specific Document:**
-    *   `python src/orchestrator.py --generate-doc --doc-type <type> --project <name>`
+    *   `python src/orchestrator.py --generate-doc <type> --project <name>`
     *   Runs **Documenter Agent** to generate a specific document.
     *   Supported `<type>` values: `api`, `project_overview`, `sdd`, `srs`, `user_manual`.
     *   Output examples: `docs/api.md`, `docs/project_docs.md`, `docs/sdd.md`, etc.
@@ -138,27 +138,38 @@ The application is controlled via `python src/orchestrator.py` followed by flags
 
 3.  **(Optional) Research/Analysis:**
     *   `python src/orchestrator.py --research --project a-cli-tool-for-basic-image...`
-    *   `python src/orchestrator.py --analyze-idea --project a-cli-tool-for-basic-image...`
+    *   `python src/orchestrator.py --analyze --project a-cli-tool-for-basic-image...`
 
-4.  **Build Initial Version:**
+4.  **Generate Architecture:**
     *   `python src/orchestrator.py --build --project a-cli-tool-for-basic-image...`
-    *   Monitors Architect, Dependency Setup, Coder, **AI Reviewer**/Code loop, Tester, Documenter steps.
+    *   Monitors Architect Agent creating implementation plans. Review `docs/impl_*.md`.
 
-5.  **Review Artifacts:** Check `impl.md`, `requirements.txt`, `src/`, `tests/`, `docs/project_docs.md`.
+5.  **Generate Code:**
+    *   `python src/orchestrator.py --code --project a-cli-tool-for-basic-image...`
+    *   Monitors Coder Agent creating source files. Review `src/`.
 
-6.  **(Optional) Generate Specific Docs:**
-    *   `python src/orchestrator.py --generate-doc --doc-type api --project a-cli-tool-for-basic-image...`
+6.  **Review Code:**
+    *   `python src/orchestrator.py --review --project a-cli-tool-for-basic-image...`
+    *   Monitors Reviewer Agent. Check if `docs/review.md` was created.
 
-7.  **Iteratively Update:**
+7.  **Apply Fixes (if review.md exists):**
+    *   `python src/orchestrator.py --code --fix --project a-cli-tool-for-basic-image...`
+    *   Monitors Coder Agent applying fixes and Architect Agent checking for updates. Review changes in `src/` and potentially `docs/impl_*.md`.
+
+8.  **(Optional) Generate Tests & Docs:** (Assuming Tester/Documenter are run manually or via a separate script/command now)
+    *   *(Example: Manually trigger Tester/Documenter or use `--generate-doc`)*
+    *   `python src/orchestrator.py --generate-doc project_overview --project a-cli-tool-for-basic-image...`
+
+9.  **Iteratively Update (General Changes):**
     *   `python src/orchestrator.py --update "Add support for resizing images with an optional --width and --height argument" --project a-cli-tool-for-basic-image...`
-    *   Runs Architect -> Coder -> Tester -> Documenter updates.
-    *   Review changes.
+    *   Runs Architect -> Coder -> Tester -> Documenter updates based on the general instruction.
+    *   Review changes. Follow up with `--review` and `--code --fix` if needed.
 
-8.  **(Optional) Re-Build for Validation:**
-    *   `python src/orchestrator.py --build --project a-cli-tool-for-basic-image...`
-    *   Re-runs the full pipeline, including the **AI Reviewer** loop and test execution.
-
-9.  **Clean Up:**
+10. **Clean Up:**
     *   `reset` or `scratch` as needed.
+
+(Steps renumbered and content updated above)
+
+(Steps renumbered and content updated above)
 
 This provides a flexible workflow for generating, building, and iteratively refining software projects.
