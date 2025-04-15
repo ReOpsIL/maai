@@ -71,7 +71,7 @@ The application is controlled via `python src/orchestrator.py` followed by flags
     *   Runs **Research Agent** using `docs/idea.md` -> `docs/research_summary.md`.
 
 *   **Analyze Idea (Market):**
-    *   `python src/orchestrator.py --analyze --project <name> [--projects-dir <path>]`
+    *   `python src/orchestrator.py --analyze-idea --project <name> [--projects-dir <path>]`
     *   Runs **Market Analyst Agent** using `docs/idea.md` -> `docs/market_analysis.md`.
 
 *   **Generate/Update Architecture:**
@@ -136,7 +136,7 @@ The application is controlled via `python src/orchestrator.py` followed by flags
 
 3.  **(Optional) Research/Analysis:**
     *   `python src/orchestrator.py --research --project image-converter`
-    *   `python src/orchestrator.py --analyze --project image-converter`
+    *   `python src/orchestrator.py --analyze-idea --project image-converter`
 
 4.  **Generate Architecture:**
     *   `python src/orchestrator.py --build --project image-converter`

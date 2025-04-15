@@ -18,6 +18,8 @@ graph TD
 
     subgraph Project Directory (projects/<name>/)
         P_IDEA(docs/idea.md);
+        P_RESEARCH(docs/research_summary.md);
+        P_ANALYSIS(docs/market_analysis.md);
         P_IMPL(docs/impl_*.md);
         P_INTEG(docs/integ.md);
         P_SRC(src/*.py);
@@ -29,6 +31,17 @@ graph TD
     subgraph Agent Interactions
         B -- "--idea" --> C(Innovator Agent);
         C -- writes --> P_IDEA;
+
+        B -- "--update-idea" --> C; # Innovator updates idea
+        C -- updates --> P_IDEA;
+
+        B -- "--research" --> J(Research Agent);
+        J -- reads --> P_IDEA;
+        J -- writes --> P_RESEARCH;
+
+        B -- "--analyze-idea" --> K(Market Analyst Agent);
+        K -- reads --> P_IDEA;
+        K -- writes --> P_ANALYSIS;
 
         B -- "--build" --> D(Architect Agent);
         D -- reads --> P_IDEA;
@@ -54,21 +67,21 @@ graph TD
         D -- writes --> P_IMPL; # Architect potentially updates impl
         D -- writes --> P_INTEG; # Architect potentially updates integ
 
-        B -- "--generate-doc" --> H(Documenter Agent);
+        B -- "--generate-doc <type>" --> H(Documenter Agent);
         H -- reads --> P_IDEA;
         H -- reads --> P_IMPL;
         H -- reads --> P_SRC;
-        H -- writes --> P_DOCS;
+        H -- writes --> P_DOCS; # Specific doc file
 
         B -- "--update" --> D;
         D -- updates --> P_IMPL;
         D -- updates --> P_INTEG;
         D -- notifies --> E;
         E -- updates --> P_SRC;
-        E -- notifies --> G(Tester Agent); # Assuming Tester is part of --update
+        E -- notifies --> G(Tester Agent); # Tester is part of --update
         G -- updates --> P_TESTS;
-        G -- notifies --> H;
-        H -- updates --> P_DOCS;
+        G -- notifies --> H; # Documenter regenerates overview
+        H -- updates --> P_DOCS; # Specifically project_overview.md
 
         B -- "list/reset/scratch" --> I(Filesystem Operations);
     end
@@ -87,9 +100,11 @@ graph TD
 ## 4. Orchestrator (`src/orchestrator.py`)
 
 *   **Initialization:** Load environment variables (e.g., `GEMINI_API_KEY`).
-*   **Argument Parsing:** Define arguments for `list`, `idea`, `build`, `code`, `review`, `reset`, `scratch`, `update`, `generate-doc`, etc., using `argparse`. Include the `--fix` flag for use with `--code`.
+*   **Argument Parsing:** Define arguments for `list`, `idea`, `update-idea`, `research`, `analyze-idea`, `build`, `code`, `review`, `reset`, `scratch`, `update`, `generate-doc`, etc., using `argparse`. Include the `--fix` flag for use with `--code`.
     *   `idea`: Takes `<text>` and optional `--project <name>`.
-    *   `build`, `code`, `review`, `reset`, `scratch`, `update`, `generate-doc`: Require `--project <name>`.
+    *   `update-idea`: Takes `<text>` and requires `--project <name>`.
+    *   `research`, `analyze-idea`, `build`, `code`, `review`, `reset`, `scratch`, `update`, `generate-doc`: Require `--project <name>`.
+    *   `generate-doc`: Takes `<type>` argument.
     *   `fix`: Boolean flag, only valid with `--code`.
 *   **Project Management:**
     *   Functions to create project directories (`projects/<name>/{docs,src,tests}`).
@@ -98,12 +113,15 @@ graph TD
     *   Functions to handle `reset` (delete specific files) and `scratch` (delete files and clear directories).
 *   **Command Handling:**
     *   `list`: Call project listing function.
-    *   `idea`: Instantiate and run `InnovatorAgent`.
+    *   `idea`: Instantiate and run `InnovatorAgent` (create mode).
+    *   `update-idea`: Instantiate and run `InnovatorAgent` (update mode).
+    *   `research`: Instantiate and run `ResearchAgent`.
+    *   `analyze-idea`: Instantiate and run `MarketAnalystAgent`.
     *   `build`: Instantiate and run `ArchitectAgent`.
     *   `code`: Instantiate and run `CoderAgent`. If `--fix` is present, read `docs/review.md` and pass feedback to `CoderAgent`, then notify `ArchitectAgent`.
     *   `review`: Instantiate and run `ReviewerAgent`.
     *   `update`: Instantiate and run sequence: `ArchitectAgent` -> `CoderAgent` -> `TesterAgent` -> `DocumenterAgent` based on general modification text.
-    *   `generate-doc`: Instantiate and run `DocumenterAgent`.
+    *   `generate-doc`: Instantiate and run `DocumenterAgent` with specified type.
     *   `reset`, `scratch`: Call respective project management functions.
 *   **Error Handling:** Implement try-except blocks for file operations, API calls, and agent execution failures. Provide informative error messages.
 *   **Logging:** Use the `logging` module for progress tracking and debugging.
@@ -141,7 +159,24 @@ class BaseAgent(ABC):
     *   Write/Append the generated content to `projects/<name>/docs/idea.md`.
 *   **Output:** Path to `idea.md`.
 
-### 5.2. Architect Agent (`src/agents/architect.py`)
+### 5.2. Research Agent (`src/agents/research_agent.py`)
+
+*   **Input:** Path to `idea.md`.
+*   **Process:**
+    *   Read `idea.md`.
+    *   Use LLM to search for relevant technical information, libraries, APIs, or existing projects based on the idea.
+    *   Summarize findings.
+*   **Output:** Writes summary to `projects/<name>/docs/research_summary.md`.
+
+### 5.3. Market Analyst Agent (`src/agents/market_analyst.py`)
+
+*   **Input:** Path to `idea.md`.
+*   **Process:**
+    *   Read `idea.md`.
+    *   Use LLM to analyze the idea for potential target audience, market fit, unique selling points, and potential challenges.
+*   **Output:** Writes analysis to `projects/<name>/docs/market_analysis.md`.
+
+### 5.4. Architect Agent (`src/agents/architect.py`)
 
 *   **Input:** Path to `idea.md`, or modification text (from user or `review.md`) + context from existing `impl_*.md`/`integ.md`.
 *   **Process:**
@@ -156,7 +191,7 @@ class BaseAgent(ABC):
     *   Format output using delimiters (`<<<COMPONENT: ...>>>`, `<<<INTEGRATION>>>`).
 *   **Output:** Writes content to `projects/<name>/docs/impl_*.md` and `projects/<name>/docs/integ.md`.
 
-### 5.3. Coder Agent (`src/agents/coder.py`)
+### 5.5. Coder Agent (`src/agents/coder.py`)
 
 *   **Input:** Paths to `impl_*.md`, `integ.md`. Optional feedback from `docs/review.md` (if `--fix` is used).
 *   **Process:**
@@ -166,7 +201,7 @@ class BaseAgent(ABC):
     *   Generate/update Python code files (`.py`) and save them into `projects/<name>/src/`.
 *   **Output:** Paths to generated/modified source files. Notifies Architect if run with `--fix`.
 
-### 5.4. Reviewer Agent (`src/agents/reviewer.py`)
+### 5.6. Reviewer Agent (`src/agents/reviewer.py`)
 
 *   **Input:** Paths to source code files (`src/*.py`), paths to implementation plans (`impl_*.md`).
 *   **Process:**
@@ -175,7 +210,7 @@ class BaseAgent(ABC):
     *   Format feedback clearly if issues are found.
 *   **Output:** Writes feedback to `projects/<name>/docs/review.md` if issues are found. Removes the file otherwise.
 
-### 5.5. Tester Agent (`src/agents/tester.py`)
+### 5.7. Tester Agent (`src/agents/tester.py`)
 
 *   **Input:** Paths to source code files (`src/*.py`), paths to implementation plans (`impl_*.md`).
 *   **Process:**
@@ -184,19 +219,15 @@ class BaseAgent(ABC):
     *   *(Test execution is now typically handled manually or by a separate CI/CD process after code generation/review)*.
 *   **Output:** Paths to generated/modified test files.
 
-### 5.6. Documenter Agent (`src/agents/documenter.py`)
+### 5.8. Documenter Agent (`src/agents/documenter.py`)
 
-*   **Input:** Paths to `idea.md`, `impl.md`, final source code files.
+*   **Input:** Document type (`<type>` from `--generate-doc`), paths to `idea.md`, implementation plans (`impl_*.md`, `integ.md`), source code (`src/*.py`).
 *   **Process:**
-    *   Read all input files.
-    *   Synthesize information (potentially using an LLM prompted to generate user documentation).
-    *   Include:
-        *   Project purpose (from `idea.md`).
-        *   High-level architecture (from `impl.md`).
-        *   How to run/use the generated code.
-        *   Key features implemented.
+    *   Read relevant input files based on the requested document type.
+    *   Use LLM with a specific prompt tailored to the document type (e.g., prompt for SRS, prompt for User Manual).
+    *   Synthesize information from the various sources.
     *   Format as Markdown.
-*   **Output:** Writes content to `projects/<name>/docs/project_docs.md`.
+*   **Output:** Writes content to `projects/<name>/docs/<type>.md` (e.g., `srs.md`, `user_manual.md`). Note: `project_overview` might be saved as `project_docs.md` or `project_overview.md` depending on implementation.
 
 ## 6. Project Structure (Application Code)
 
@@ -206,10 +237,12 @@ maai/
 │   └── <project_name>/
 │       ├── docs/
 │       │   ├── idea.md
+│       │   ├── research_summary.md
+│       │   ├── market_analysis.md
 │       │   ├── impl_*.md
 │       │   ├── integ.md
 │       │   ├── review.md
-│       │   └── project_docs.md
+│       │   └── *.md # Various generated docs (srs.md, api.md, etc.)
 │       ├── src/
 │       │   └── *.py
 │       └── tests/
@@ -223,7 +256,9 @@ maai/
 │   │   ├── coder.py
 │   │   ├── reviewer.py
 │   │   ├── tester.py
-│   │   └── documenter.py
+│   │   ├── documenter.py
+│   │   ├── market_analyst.py
+│   │   └── research_agent.py
 │   ├── __init__.py
 │   ├── orchestrator.py
 │   └── utils.py          # Helper functions (e.g., slugify, file ops)
@@ -243,6 +278,7 @@ maai/
 ## 8. Configuration
 
 *   Requires a `.env` file in the root directory with `GEMINI_API_KEY=your_api_key`.
+*   A `config.yaml` file can configure LLM model names and potentially other settings.
 *   `requirements.txt` will list all dependencies.
 
 ## 9. Innovative Features & Future Enhancements
@@ -259,15 +295,17 @@ maai/
 ## 10. Implementation Steps
 
 1.  Set up the basic project structure and `requirements.txt`.
-2.  Implement the `Orchestrator` CLI argument parsing (`argparse`) including new commands (`build`, `code`, `review`, `fix`) and project management functions.
-3.  Implement the `InnovatorAgent` (`--idea`).
-4.  Implement the `ArchitectAgent` (`--build`, update logic).
-5.  Implement the `CoderAgent` (`--code`, `--fix` logic).
-6.  Implement the `ReviewerAgent` (`--review`, writing to `review.md`).
-7.  Implement the `TesterAgent` (test generation, execution decoupled).
-8.  Implement the `DocumenterAgent` (`--generate-doc`).
-9.  Integrate agent calls into the `Orchestrator` command handlers.
-10. Implement `reset` and `scratch` commands.
-11. Add robust error handling and logging throughout.
-12. Write tests for the MAAI application itself.
-13. Refine agent prompts and logic for better results and handling of the `--code --fix` workflow.
+2.  Implement the `Orchestrator` CLI argument parsing (`argparse`) including all commands (`idea`, `update-idea`, `research`, `analyze-idea`, `build`, `code`, `review`, `fix`, `generate-doc`, `update`, `reset`, `scratch`, `list`) and project management functions.
+3.  Implement the `InnovatorAgent` (`--idea`, `--update-idea`).
+4.  Implement the `ResearchAgent` (`--research`).
+5.  Implement the `MarketAnalystAgent` (`--analyze-idea`).
+6.  Implement the `ArchitectAgent` (`--build`, update logic).
+7.  Implement the `CoderAgent` (`--code`, `--fix` logic).
+8.  Implement the `ReviewerAgent` (`--review`, writing to `review.md`).
+9.  Implement the `TesterAgent` (test generation, update logic).
+10. Implement the `DocumenterAgent` (`--generate-doc <type>`).
+11. Integrate agent calls into the `Orchestrator` command handlers for all workflows (`--idea`, `--build`, `--code`, `--review`, `--update`, etc.).
+12. Implement `reset` and `scratch` commands.
+13. Add robust error handling and logging throughout.
+14. Write tests for the MAAI application itself.
+15. Refine agent prompts and logic for better results and handling of the various workflows.
