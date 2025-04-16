@@ -1,46 +1,49 @@
 import os
 import google.generativeai as genai
 from google.api_core import exceptions as google_exceptions
+
 import re
 import subprocess
 import sys
 import shutil
+import glob
 from .base_agent import BaseAgent
 
 class TesterAgent(BaseAgent):
     """
     Generates and executes unit/integration tests based on the implementation
-    details (impl.md) and the generated source code.
+    details (impl_*.md) and the generated source code.
     """
 
-    def run(self, modification_text: str | None = None, update_mode: bool = False, impl_content: str | None = None) -> list[str]:
+    def run(self, impl_content: str | None = None) -> list[str]:
         """
         Executes the Tester agent's task: generating or updating test files.
         Does NOT execute the tests.
 
         Args:
-            modification_text: Specific instructions for modifying existing tests
-                               (used when update_mode is True).
-            update_mode: If True, read existing tests and source code, apply modifications.
-                         If False, generate new tests based on source code and impl.md.
-            impl_content: Optional pre-read content of impl.md. If None, reads from file.
+            impl_content: Optional pre-read content of impl_*.md. If None, reads from file.
 
         Returns:
-            A list of absolute paths to the generated or updated test files.
+            A list of absolute paths to the generated  test files.
         """
-        self.logger.info(f"Running Tester Agent for project: {self.project_name} (Update Mode: {update_mode})")
-        if update_mode and not modification_text:
-             raise ValueError("Modification text is required when running Tester in update mode.")
-        # Read impl.md content if not provided
+        self.logger.info(f"Running Tester Agent for project: {self.project_name}")
+       
+        # Read impl_*.md content if not provided
         if impl_content is None:
-            impl_md_path = os.path.join(self.docs_path, "impl.md")
-            self.logger.info(f"Reading implementation plan from: {impl_md_path}")
-            impl_content = self._read_file(impl_md_path)
-            if impl_content is None:
-                self.logger.warning(f"Could not read impl.md for project {self.project_name}. Test generation context might be limited.")
+            impl_md_path = os.path.join(self.docs_path, "impl_*.md")
+            self.logger.info(f"Reading implementation plans from: {impl_md_path}")
+            impl_files = glob.glob(impl_md_path)
+            impl_content = ""
+            for file in impl_files:
+                content = self._read_file(file)
+                if content is not None:
+                    impl_content += content + "\n\n"
+            if not impl_content:
+                self.logger.warning(f"Could not read impl_*.md files for project {self.project_name}. Test generation context might be limited.")
                 impl_content = "# Implementation Plan Not Available\nGenerate tests based solely on the provided source code."
         else:
-             self.logger.info("Using provided implementation plan content.")
+            self.logger.info("Using provided implementation plan content.")
+        
         # --- Read Context (Source Code, Existing Tests if updating) ---
         self.logger.info(f"Reading source code from: {self.src_path}")
         source_code_content = self._read_source_code()
@@ -49,24 +52,17 @@ class TesterAgent(BaseAgent):
              # Allow proceeding, but AI might struggle
 
         existing_tests = None
-        if update_mode:
-            self.logger.info(f"Reading existing tests from: {self.tests_path}")
-            existing_tests = self._read_existing_tests()
-            if not existing_tests:
-                 self.logger.warning(f"No existing tests found in {self.tests_path} to update.")
-                 # Proceed, but it's effectively generation mode based on source + modification text
-
+       
         # --- Generate or Update Test Cases ---
-        self.logger.info("Attempting to generate or update test cases using AI.")
+        self.logger.info("Attempting to generate test cases using AI.")
         generated_test_files_content = {}
         try:
-            generated_test_files_content = self._generate_or_update_tests(
+            generated_test_files_content = self._generate(
                 impl_content=impl_content,
                 source_code=source_code_content,
-                existing_tests=existing_tests,
-                modification_text=modification_text
+                existing_tests=existing_tests
             )
-            log_action = "updated" if update_mode and existing_tests else "generated"
+            log_action =  "generated"
             self.logger.info(f"Successfully {log_action} content for {len(generated_test_files_content)} test file(s) using AI.")
 
         except (ValueError, ConnectionError, RuntimeError) as e:
@@ -146,28 +142,22 @@ class TesterAgent(BaseAgent):
             self.logger.error(f"Error reading existing test files from {self.tests_path}: {e}", exc_info=True)
         return test_files
 
-    def _generate_or_update_tests(self, impl_content: str, source_code: dict[str, str], existing_tests: dict[str, str] | None, modification_text: str | None) -> dict[str, str]:
+    def _generate(self, impl_content: str, source_code: dict[str, str], existing_tests: dict[str, str] | None) -> dict[str, str]:
         """Uses Generative AI to create or update pytest test cases."""
         # Model initialization is now handled by BaseAgent
         if not self.model:
             self.logger.error("Generative model not initialized in BaseAgent. Cannot proceed.")
             raise RuntimeError("TesterAgent requires a configured Generative Model.")
 
-        if existing_tests and modification_text:
-             # Update mode
-             prompt = self._create_update_test_prompt(impl_content, source_code, existing_tests, modification_text)
-             self.logger.debug(f"Generated update prompt for Gemini (Tester):\n{prompt[:500]}...")
-        else:
-             # Create mode
-             prompt = self._create_test_prompt(impl_content, source_code)
-             self.logger.debug(f"Generated create prompt for Gemini (Tester):\n{prompt[:500]}...")
+        # Create mode
+        prompt = self._create_test_prompt(impl_content, source_code)
+        self.logger.debug(f"Generated create prompt for Gemini (Tester):\n{prompt[:500]}...")
         try:
             self.logger.info("Sending request to Gemini API for test generation...")
             # May need higher token limits for tests + source code context
             # generation_config = genai.types.GenerationConfig(max_output_tokens=8192)
             # response = model.generate_content(prompt, generation_config=generation_config)
-            response = self.model.generate_content(prompt)
-            generated_text = response.text
+            generated_text = self.model.generate_content(prompt)
             self.logger.info("Received test generation response from Gemini API.")
             self.logger.debug(f"Generated Test Text (first 200 chars):\n{generated_text[:200]}...")
 
@@ -195,7 +185,7 @@ class TesterAgent(BaseAgent):
         prompt = f"""
 Generate Python unit tests using the `pytest` framework based on the following implementation plan and source code.
 
-**Implementation Plan (from impl.md):**
+**Implementation Plan (from impl_*.md):**
 ```markdown
 {impl_content}
 ```
@@ -235,56 +225,6 @@ Generate Python unit tests using the `pytest` framework based on the following i
 """
         return prompt
 
-    def _create_update_test_prompt(self, impl_content: str, source_code: dict[str, str], existing_tests: dict[str, str], modification_text: str) -> str:
-         """Creates the prompt for the generative AI model to update existing tests."""
-
-         source_code_blocks = []
-         for path, code in source_code.items():
-              # Use path relative to project root (e.g., src/module.py)
-              source_code_blocks.append(f"```python filename={path}\n{code}\n```")
-         source_code_section = "\n\n".join(source_code_blocks) if source_code_blocks else "*(No source code found)*"
-
-         existing_test_blocks = []
-         for filename, code in existing_tests.items():
-              # Use filename relative to tests/ (e.g., test_module.py)
-              existing_test_blocks.append(f"```python filename=tests/{filename}\n{code}\n```")
-         existing_tests_section = "\n\n".join(existing_test_blocks) if existing_test_blocks else "*(No existing tests found)*"
-
-
-         prompt = f"""
-Refine and update the following existing Python `pytest` tests based on the provided modification instructions. Ensure the tests align with the implementation plan and the current source code.
-
-**Implementation Plan (impl.md):**
-```markdown
-{impl_content}
-```
-
-**Current Source Code (from src/):**
-{source_code_section}
-
-**Existing Tests (from tests/):**
-{existing_tests_section}
-
-**User's Modification Instructions:**
-"{modification_text}"
-
-**Task:**
-
-1.  **Analyze the existing tests, source code, implementation plan, and modification instructions.**
-2.  **Apply the requested changes to the relevant test files.** This might involve adding new tests, modifying existing ones, removing obsolete tests, improving mocks, or fixing assertions based on the instructions or changes in source code.
-3.  **Ensure the updated tests are valid `pytest` tests** and correctly target the current source code. Maintain good testing practices.
-4.  **Output the complete, updated versions of ALL modified test files.** If a test file doesn't need changes based on the instructions, DO NOT include it in the output. If new test files are explicitly required, generate them.
-5.  **Structure the output clearly.** Use Markdown code blocks prefixed with the intended filename relative to the `tests/` directory (e.g., `filename=tests/test_main.py`). Ensure filenames start with `test_`.
-
-    ```python filename=tests/test_some_module.py
-    # Updated contents of tests/test_some_module.py
-    # ...
-    ```
-6.  **Focus only on generating the Python test code files.** Do not add explanatory text outside the code blocks.
-
-**Generate the complete, updated Python test code blocks for all affected files below:**
-"""
-         return prompt
     def _parse_code_blocks(self, generated_text: str) -> dict[str, str]:
         """Parses the AI's response to extract test code blocks tagged with filenames."""
         # Regex to find ```python filename=path/to/test_file.py ... ``` blocks

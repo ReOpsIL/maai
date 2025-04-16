@@ -4,3 +4,4 @@ colorama
 PyYAML
 flake8
 pylint
+openai

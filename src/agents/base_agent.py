@@ -1,8 +1,9 @@
 import logging
 import os
 from abc import ABC, abstractmethod
-import google.generativeai as genai
 from utils import load_config
+from agents.openai_client import OpenAIClient
+
 class BaseAgent(ABC):
     """Abstract base class for all agents."""
 
@@ -23,34 +24,27 @@ class BaseAgent(ABC):
 
         # Load configuration
         config = load_config()
-        model_name = config.get('llm', {}).get('model_name', 'gemini-pro') # Default to 'gemini-pro' if not found
-        self.logger.info(f"Using LLM model: {model_name}")
+        model_name = config.get('llm', {}).get('model')
+        provider = config.get('llm', {}).get('provider')
 
-        # Configure Gemini API (ensure GEMINI_API_KEY is set in the environment)
-        try:
-            api_key = os.environ.get("GEMINI_API_KEY")
-            if not api_key:
-                raise ValueError("GEMINI_API_KEY environment variable not set.")
-            genai.configure(api_key=api_key)
-        except ValueError as e:
-            self.logger.error(f"API Key Configuration Error: {e}")
-            # Depending on requirements, you might want to raise the error
-            # or allow the application to continue without a configured model.
-            # For now, we'll log the error and proceed, but the model won't work.
-            self.model = None # Indicate that the model is not available
-        except Exception as e:
-             self.logger.error(f"An unexpected error occurred during genai configuration: {e}")
-             self.model = None
+        self.logger.info(f"Using LLM model: {model_name} from provider: {provider}")
+        if provider  in ["grok", "groq", "openrouter"]:
+            self.model = OpenAIClient()
         else:
-             # Initialize the generative model
-             self.model = genai.GenerativeModel(model_name)
-             self.logger.info(f"Generative model '{model_name}' initialized successfully.")
-
-
+            raise Exception(f"Unknown AI provider {provider} - Cant initialize client")
+        
         self.logger.info(f"Initialized for project: {self.project_name}")
 
+    def generate_content(self, prompt: str) -> str:
+        """Helper method to interact with OpenRouter API."""
+        if self.model is None:
+            self.logger.error("AI client not initialized. Cannot generate response.")
+            raise Exception("FATAL error - Stopping!")
+
+        return self.model.method(prompt=prompt)
+
     @abstractmethod
-    def run(self, *args, **kwargs):
+    def run(self, *args, **kwargs) -> str:
         """
         Executes the agent's primary task.
         Must be implemented by subclasses.

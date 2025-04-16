@@ -37,24 +37,13 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', 'config.yaml')
 
 def load_config() -> dict:
     """Loads the configuration from config.yaml."""
-    if not os.path.exists(CONFIG_PATH):
-        logger.warning(f"Configuration file not found at {CONFIG_PATH}. Using default settings.")
-        # Return a default structure or handle as appropriate
-        # Ensure this default matches the expected structure downstream
-        return {'llm': {'model_name': 'gemini-pro'}} # Default fallback
-
+  
     try:
         with open(CONFIG_PATH, 'r') as f:
             config = yaml.safe_load(f)
             if config is None: # Handle empty YAML file
-                 logger.warning(f"Configuration file {CONFIG_PATH} is empty. Using default settings.")
-                 return {'llm': {'model_name': 'gemini-pro'}}
+                 raise Exception(f"Configuration file {CONFIG_PATH} is empty.")
             logger.info(f"Loaded configuration from {CONFIG_PATH}")
-            # Basic validation could be added here
-            if 'llm' not in config or 'model_name' not in config.get('llm', {}):
-                 logger.warning(f"LLM model_name not found in {CONFIG_PATH}. Using default 'gemini-pro'.")
-                 # Ensure default structure is consistent
-                 config.setdefault('llm', {})['model_name'] = 'gemini-pro'
             return config
     except yaml.YAMLError as e:
         logger.error(f"Error parsing configuration file {CONFIG_PATH}: {e}")

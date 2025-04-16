@@ -11,7 +11,7 @@ class DocumenterAgent(BaseAgent):
 
     SUPPORTED_DOC_TYPES = ['sdd', 'srs', 'api', 'user_manual', 'project_overview']
 
-    def run(self, doc_type: str, update_mode: bool = False) -> str:
+    def run(self, doc_type: str) -> str:
         """
         Executes the Documenter agent's task: generating a specific type of documentation.
 
@@ -32,8 +32,6 @@ class DocumenterAgent(BaseAgent):
              output_filename = "project_docs.md"
         output_doc_path = os.path.join(self.docs_path, output_filename)
         idea_md_path = os.path.join(self.docs_path, "idea.md")
-        impl_md_path = os.path.join(self.docs_path, "impl.md")
-        # project_docs_md_path = os.path.join(self.docs_path, "project_docs.md") # Replaced by dynamic path
 
         # --- Read Input Files ---
         self.logger.info(f"Reading concept from: {idea_md_path}")
@@ -42,25 +40,27 @@ class DocumenterAgent(BaseAgent):
             self.logger.warning(f"Could not read {idea_md_path}. Documentation might be incomplete.")
             idea_content = "# Project Concept\n\n(Could not read idea.md)"
 
-        self.logger.info(f"Reading implementation plan from: {impl_md_path}")
-        impl_content = self._read_file(impl_md_path)
-        if impl_content is None:
-            self.logger.warning(f"Could not read {impl_md_path}. Documentation might be incomplete.")
-            impl_content = "# Implementation Plan\n\n(Could not read impl.md)" # Keep reading context
+        impl_content = "Implementation plan for the project:\n\n"
+        for filename in os.listdir(self.docs_path):
+            if filename.startswith("impl_") and filename.endswith(".md"):
+                impl_md_path = os.path.join(self.docs_path, filename)
+                # project_docs_md_path = os.path.join(self.docs_path, "project_docs.md") # Replaced by dynamic path
+
+                self.logger.info(f"Reading implementation plan from: {impl_md_path}")
+                impl_content += f"Reading implementation plan from file {impl_md_path}\n"
+
+                impl_content_file_content = self._read_file(impl_md_path)
+                if impl_content_file_content is None:
+                    self.logger.warning(f"Could not read {impl_md_path}. Documentation might be incomplete.")
+                    impl_content = f"# Implementation Plan\n\n(Could not read {impl_md_path})" # Keep reading context
+                else:
+                    impl_content += f"{impl_content_file_content}\n\n"
 
         self.logger.info("Reading source code...")
         source_code_content = self._read_source_code()
         if not source_code_content:
              self.logger.warning("No source code found. Documentation quality may be limited.")
 
-        existing_docs_content = None
-        if update_mode:
-             self.logger.info(f"Reading existing documentation: {project_docs_md_path}")
-             existing_docs_content = self._read_file(project_docs_md_path)
-             if existing_docs_content is None:
-                  self.logger.warning(f"Existing documentation file not found at {project_docs_md_path}. Will generate new documentation based on instructions.")
-                  # Treat as creation mode but with modification text as primary input? Or fail?
-                  # Let's proceed, effectively generating based on instructions + context.
         # --- Generate Specific Documentation ---
         self.logger.info(f"Attempting to generate '{doc_type}' documentation using AI.")
         try:
@@ -131,8 +131,7 @@ class DocumenterAgent(BaseAgent):
             # Consider adjusting token limits if context is large
             # generation_config = genai.types.GenerationConfig(max_output_tokens=4096)
             # response = self.model.generate_content(prompt, generation_config=generation_config)
-            response = self.model.generate_content(prompt)
-            generated_docs = response.text
+            generated_docs = self.model.generate_content(prompt)
             self.logger.info(f"Received '{doc_type}' documentation response from Gemini API.")
             self.logger.debug(f"Generated '{doc_type}' Docs (first 200 chars):\n{generated_docs[:200]}...")
             return generated_docs
@@ -170,7 +169,7 @@ Generate user-friendly project documentation in Markdown format (`project_docs.m
 {idea_content}
 ```
 
-**Implementation Plan (from impl.md):**
+**Implementation Plan (from impl_*.md):**
 ```markdown
 {impl_content}
 ```
@@ -184,12 +183,12 @@ Generate user-friendly project documentation in Markdown format (`project_docs.m
 2.  **Target Audience:** Assume a user who wants to understand what the project does and how to use it. Technical users might also appreciate architecture overview.
 3.  **Include the following sections:**
     *   **Project Overview:** Briefly describe the project's purpose and main goal (synthesize from `idea.md`).
-    *   **Features:** List the key features implemented (refer to `idea.md` and `impl.md`).
+    *   **Features:** List the key features implemented (refer to `idea.md` and `impl_*.md`).
     *   **Getting Started / Usage:** Explain how to run or use the generated application/tool. Include example commands if it's a CLI tool. Mention any prerequisites (e.g., Python version, `pip install requirements.txt`).
-    *   **Architecture Overview (Optional but Recommended):** Briefly describe the main components and how they work together (summarize from `impl.md`). A Mermaid diagram from `impl.md` could be included if relevant and simple.
+    *   **Architecture Overview (Optional but Recommended):** Briefly describe the main components and how they work together (summarize from `impl_*.md`). A Mermaid diagram from `impl_*.md` could be included if relevant and simple.
     *   **Configuration (if applicable):** Mention any required configuration (e.g., environment variables like API keys).
     *   **Troubleshooting (Optional):** Common issues and solutions.
-4.  **Synthesize information** from all provided inputs (`idea.md`, `impl.md`, source code snippets).
+4.  **Synthesize information** from all provided inputs (`idea.md`, `impl_*.md`, source code snippets).
 5.  **Maintain a clear and concise writing style.** Use Markdown formatting effectively (headings, lists, code blocks).
 6.  **Do NOT just copy sections verbatim.** Rephrase and structure the information logically for documentation purposes.
 7.  **Format the entire output strictly as Markdown.** Do not include introductory or concluding remarks outside the Markdown structure.
@@ -214,7 +213,7 @@ Generate user-friendly project documentation in Markdown format (`project_docs.m
 {idea_content}
 ```
 
-**Implementation Plan (from impl.md):**
+**Implementation Plan (from impl_*.md):**
 ```markdown
 {impl_content}
 ```
@@ -228,12 +227,12 @@ Generate user-friendly project documentation in Markdown format (`project_docs.m
 2.  **Target Audience:** Assume a user who wants to understand what the project does and how to use it. Technical users might also appreciate architecture overview.
 3.  **Include the following sections:**
     *   **Project Overview:** Briefly describe the project's purpose and main goal (synthesize from `idea.md`).
-    *   **Features:** List the key features implemented (refer to `idea.md` and `impl.md`).
+    *   **Features:** List the key features implemented (refer to `idea.md` and `impl_*.md`).
     *   **Getting Started / Usage:** Explain how to run or use the generated application/tool. Include example commands if it's a CLI tool. Mention any prerequisites (e.g., Python version, `pip install requirements.txt`).
-    *   **Architecture Overview (Optional but Recommended):** Briefly describe the main components and how they work together (summarize from `impl.md`). A Mermaid diagram from `impl.md` could be included if relevant and simple.
+    *   **Architecture Overview (Optional but Recommended):** Briefly describe the main components and how they work together (summarize from `impl_*.md`). A Mermaid diagram from `impl.md` could be included if relevant and simple.
     *   **Configuration (if applicable):** Mention any required configuration (e.g., environment variables like API keys).
     *   **Troubleshooting (Optional):** Common issues and solutions.
-4.  **Synthesize information** from all provided inputs (`idea.md`, `impl.md`, source code snippets).
+4.  **Synthesize information** from all provided inputs (`idea.md`, `impl_*.md`, source code snippets).
 5.  **Maintain a clear and concise writing style.** Use Markdown formatting effectively (headings, lists, code blocks).
 6.  **Do NOT just copy sections verbatim.** Rephrase and structure the information logically for documentation purposes.
 7.  **Format the entire output strictly as Markdown.** Do not include introductory or concluding remarks outside the Markdown structure.
@@ -252,7 +251,7 @@ Generate a System Requirements Specification (SRS) document in Markdown format b
 {idea_content}
 ```
 
-**Implementation Plan (impl.md):**
+**Implementation Plan (impl_*.md):**
 ```markdown
 {impl_content}
 ```
@@ -264,11 +263,11 @@ Generate a System Requirements Specification (SRS) document in Markdown format b
 3.  **Include the following sections (adapt based on available information):**
     *   **Introduction:** Purpose of the document, scope of the project, definitions/acronyms.
     *   **Overall Description:** Product perspective, product functions (summarized), user characteristics, constraints, assumptions.
-    *   **Functional Requirements:** Detail specific functions the system must perform. Use clear, numbered requirements (e.g., FR-01: The system shall...). Derive these from the features in `idea.md` and the modules/methods in `impl.md`.
+    *   **Functional Requirements:** Detail specific functions the system must perform. Use clear, numbered requirements (e.g., FR-01: The system shall...). Derive these from the features in `idea.md` and the modules/methods in `impl_*.md`.
     *   **Non-Functional Requirements:** Detail quality attributes like performance, usability, reliability, security, maintainability, portability. (Infer these or make reasonable assumptions if not specified).
-    *   **Interface Requirements:** Describe user interfaces (CLI, GUI if applicable), hardware interfaces, software interfaces (e.g., external APIs mentioned in `impl.md`).
+    *   **Interface Requirements:** Describe user interfaces (CLI, GUI if applicable), hardware interfaces, software interfaces (e.g., external APIs mentioned in `impl_*.md`).
     *   **(Optional) Use Cases / User Stories:** Include key use cases or user stories from `idea.md` if available.
-4.  **Synthesize information** primarily from `idea.md` and `impl.md`.
+4.  **Synthesize information** primarily from `idea.md` and `impl_*.md`.
 5.  **Format the entire output strictly as Markdown.** Use clear headings and structured lists for requirements.
 
 **Generate the complete SRS document (`srs.md`) below:**
@@ -292,7 +291,7 @@ Generate a System Requirements Specification (SRS) document in Markdown format b
          prompt = f"""
 Generate API documentation in Markdown format based on the provided Python source code and implementation plan. Focus on documenting public functions, classes, and methods that form the project's API (internal or external).
 
-**Implementation Plan (impl.md):**
+**Implementation Plan (impl_*.md):**
 ```markdown
 {impl_content}
 ```
@@ -311,7 +310,7 @@ Generate API documentation in Markdown format based on the provided Python sourc
     *   Describe what each method/function does.
     *   Mention return values (including type hints if available).
     *   Include simple code examples if possible (especially for CLI entry points or key library functions).
-5.  **If the project exposes an external API (e.g., REST),** document the endpoints, request/response formats, and authentication methods based on the `impl.md` and code.
+5.  **If the project exposes an external API (e.g., REST),** document the endpoints, request/response formats, and authentication methods based on the `impl_*.md` and code.
 6.  **Format the entire output strictly as Markdown.** Use code blocks for signatures and examples.
 
 **Generate the complete API documentation (`api.md`) below:**
@@ -329,7 +328,7 @@ Generate a user manual (or help guide) in Markdown format for the project descri
 {idea_content}
 ```
 
-**Implementation Plan (impl.md):**
+**Implementation Plan (impl_*.md):**
 ```markdown
 {impl_content}
 ```
@@ -346,7 +345,7 @@ Generate a user manual (or help guide) in Markdown format for the project descri
     *   **(Optional) Examples:** Provide more detailed examples of use cases.
     *   **(Optional) Troubleshooting:** List common problems and how to solve them.
     *   **(Optional) Getting Help:** Where to find more information or report issues.
-4.  **Synthesize information** primarily from `idea.md` (features, user stories) and `impl.md` (architecture, CLI commands, configuration).
+4.  **Synthesize information** primarily from `idea.md` (features, user stories) and `impl_*.md` (architecture, CLI commands, configuration).
 5.  **Format the entire output strictly as Markdown.** Use clear headings, lists, and code blocks for commands/examples.
 
 **Generate the complete User Manual (`user_manual.md`) below:**
@@ -355,7 +354,7 @@ Generate a user manual (or help guide) in Markdown format for the project descri
 
     def _create_sdd_prompt(self, idea_content: str, impl_content: str, source_code: dict[str, str]) -> str:
          """Creates the prompt for generating a Software Design Document (SDD)."""
-         # Note: Relies heavily on impl.md and source code.
+         # Note: Relies heavily on impl_*.md and source code.
          source_code_blocks = []
          if source_code:
              for path, code in source_code.items():
@@ -370,7 +369,7 @@ Generate a user manual (or help guide) in Markdown format for the project descri
          prompt = f"""
 Generate a Software Design Document (SDD) in Markdown format based on the provided implementation plan and source code.
 
-**Implementation Plan (impl.md):**
+**Implementation Plan (impl_*.md):**
 ```markdown
 {impl_content}
 ```
@@ -382,21 +381,21 @@ Generate a Software Design Document (SDD) in Markdown format based on the provid
 
 1.  **Generate an SDD document (`sdd.md`).**
 2.  **Focus on describing the system's architecture, components, interfaces, and data.**
-3.  **Include the following sections (derive details from `impl.md` and source code):**
+3.  **Include the following sections (derive details from `impl_*.md` and source code):**
     *   **Introduction:** Purpose, scope, overview of the design.
-    *   **System Architecture:** High-level overview of the architecture (e.g., layers, major components). Use Mermaid diagrams from `impl.md` if available and relevant.
-    *   **Component Design (Low-Level Design):** For each major component/module identified in `impl.md` or `src/`:
+    *   **System Architecture:** High-level overview of the architecture (e.g., layers, major components). Use Mermaid diagrams from `impl_*.md` if available and relevant.
+    *   **Component Design (Low-Level Design):** For each major component/module identified in `impl_*.md` or `src/`:
         *   Purpose and responsibilities.
         *   Key classes and functions within the component.
         *   Relationships with other components (dependencies).
         *   Algorithms or complex logic used (if applicable).
-    *   **Data Design:** Describe major data structures, file formats, or database schemas used (refer to `impl.md` and code).
+    *   **Data Design:** Describe major data structures, file formats, or database schemas used (refer to `impl_*.md` and code).
     *   **Interface Design:**
         *   User Interface (CLI description, if applicable).
-        *   External Interfaces (APIs the system consumes or provides, based on `impl.md` and code).
+        *   External Interfaces (APIs the system consumes or provides, based on `impl_*.md` and code).
         *   Internal Interfaces (how components interact).
     *   **Deployment Considerations (Optional):** Briefly mention how the system might be deployed based on its nature (e.g., standalone script, web service).
-4.  **Synthesize information** primarily from `impl.md` and the actual `source_code`. Use `idea.md` for high-level context if needed.
+4.  **Synthesize information** primarily from `impl_*.md` and the actual `source_code`. Use `idea.md` for high-level context if needed.
 5.  **Format the entire output strictly as Markdown.** Use clear headings, subheadings, lists, and code blocks where appropriate.
 
 **Generate the complete SDD document (`sdd.md`) below:**

@@ -1,5 +1,5 @@
 import os
-import google.generativeai as genai
+
 from google.api_core import exceptions as google_exceptions
 from .base_agent import BaseAgent
 
@@ -36,10 +36,7 @@ class ResearchAgent(BaseAgent):
         try:
             prompt = self._create_research_prompt(idea_content)
             self.logger.debug(f"Generated research prompt for Gemini:\n{prompt[:500]}...")
-
-            # Use the model to generate the research summary
-            response = self.model.generate_content(prompt)
-            research_summary = response.text
+            research_summary = self.model.generate_content(prompt)
             self.logger.info("Received research summary response from Gemini API.")
             self.logger.debug(f"Generated Research Summary (first 200 chars):\n{research_summary[:200]}...")
 
@@ -63,7 +60,9 @@ class ResearchAgent(BaseAgent):
     def _create_research_prompt(self, idea_content: str) -> str:
         """Creates the prompt for the generative AI model to perform research and summarize."""
         prompt = f"""
-Act as a technical research assistant. Analyze the following project concept and perform research (based on your knowledge, including web data up to your last training cut-off) to identify relevant technologies, implementation patterns, and architectural considerations.
+Act as a technical research assistant. Analyze the following project concept and perform research (based on your knowledge,
+including web data up to your last training cut-off) to identify relevant technologies,
+implementation patterns, and architectural considerations.
 
 **Project Concept (idea.md):**
 ```markdown
@@ -73,7 +72,7 @@ Act as a technical research assistant. Analyze the following project concept and
 **Task:**
 
 1.  **Identify Key Technical Areas:** Based on the concept, determine the core technical challenges or areas requiring specific technologies (e.g., data storage, API integration, UI framework, specific algorithms, deployment environment).
-2.  **Simulate Research:** Find 3-5 relevant articles, blog posts, tutorials, or documentation summaries related to these key technical areas. For each resource found:
+2.  **Simulate Research:** Find 5-10 relevant articles, blog posts, tutorials, or documentation summaries related to these key technical areas. For each resource found:
     *   Provide a **Title** (or a descriptive name if a formal title isn't available).
     *   Provide a **URL** if possible (or indicate if it's general knowledge).
     *   Write a **Concise Summary** focusing specifically on:

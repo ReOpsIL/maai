@@ -4,7 +4,6 @@ import google.generativeai as genai
 from google.api_core import exceptions as google_exceptions
 import re
 from pathlib import Path
-import sys # Keep sys for potential future use, though not strictly needed in this snippet
 from .base_agent import BaseAgent
 import logging # Make sure logging is imported if not already
 
@@ -23,22 +22,19 @@ DIR_MARKER = '/' # Character indicating a directory in the structure text
 class CoderAgent(BaseAgent):
     """
     Determines project structure, scaffolds directories/files, and generates
-    Python code based on the implementation specifications (impl.md).
-    Handles both initial creation and updates.
+    Python code based on the implementation specifications (impl_*.md).
+    Handles initial creation.
     """
 
-    def run(self, feedback: str | None = None, modification_text: str | None = None, update_mode: bool = False, impl_content: str | None = None):
+    def run(self, feedback: str | None = None, impl_content: str | None = None):
         """
         Executes the Coder agent's task: structuring the project and generating/updating source files.
 
         Args:
             feedback: Optional feedback from Reviewer/Tester agents (used in build loop).
-            modification_text: Specific instructions for modifying existing code (used for explicit update command).
-            update_mode: If True, read existing code and apply modifications based on modification_text.
-                         If False, generate structure and code based on impl.md and optional feedback.
-            impl_content: Optional pre-read content of impl.md. If None, reads from file.
+            impl_content: Optional pre-read content of impl_*.md. If None, reads from file.
         """
-        self.logger.info(f"Running Coder Agent for project: {self.project_name} (Update Mode: {update_mode})")
+        self.logger.info(f"Running Coder Agent for project: {self.project_name} )")
 
         # 1. Read Implementation Plan (Common to both modes)
         if impl_content is None:
@@ -64,14 +60,8 @@ class CoderAgent(BaseAgent):
                  raise RuntimeError(f"Could not list files in documentation directory: {e}")
 
             if not plan_files:
-                # Fallback to check for the old impl.md if no new files found
-                impl_md_path = os.path.join(self.docs_path, "impl.md")
-                if os.path.exists(impl_md_path):
-                     self.logger.warning("Found legacy 'impl.md'. Reading it as the sole implementation plan.")
-                     plan_files = ["impl.md"]
-                else:
-                     self.logger.error(f"No implementation plan files (impl_*.md, integ.md, or legacy impl.md) found in {self.docs_path}.")
-                     raise FileNotFoundError(f"No implementation plan files found for project {self.project_name} in {self.docs_path}. Ensure the Architect Agent ran successfully.")
+                self.logger.error(f"No implementation plan files (impl_*.md, integ.md) found in {self.docs_path}.")
+                raise FileNotFoundError(f"No implementation plan files found for project {self.project_name} in {self.docs_path}. Ensure the Architect Agent ran successfully.")
 
             combined_content = []
             self.logger.info(f"Reading implementation plans from: {', '.join(plan_files)}")
@@ -82,7 +72,7 @@ class CoderAgent(BaseAgent):
                     combined_content.append(f"# --- Content from: {filename} ---\n\n{content}\n\n# --- End of: {filename} ---")
                 else:
                     self.logger.warning(f"Could not read content from implementation file: {file_path}")
-                    # Decide if this should be fatal. For now, continue.
+                    raise Exception("FATAL error - Stopping!")
 
             if not combined_content:
                  raise FileNotFoundError(f"Failed to read content from any identified implementation plan files: {', '.join(plan_files)}")
@@ -94,61 +84,39 @@ class CoderAgent(BaseAgent):
              self.logger.info("Using provided implementation plan content (skipping file read).")
 
 
-        written_files = [] # Keep track of files actually written/updated
+        written_files = [] # Keep track of files actually written
 
-        if update_mode:
-            # --- UPDATE MODE ---
-            if not modification_text:
-                 raise ValueError("Modification text is required when running Coder in update mode.")
-            self.logger.info(f"Incorporating modification instructions:\n{modification_text}")
+    
+        # --- CREATE MODE (Initial or with Feedback) ---
+        if feedback:
+            self.logger.info(f"Incorporating feedback from review/test:\n{feedback}")
 
-            self.logger.info(f"Reading existing source code from project path: {self.project_path}") # Read from project path, not just src
-            existing_code = self._read_all_code_files(self.project_path) # Modified to read all files potentially
-            if not existing_code:
-                 self.logger.warning(f"No existing code found in {self.project_path} to update.")
-                 # Allow continuing, LLM might generate files based on instructions anyway
-
-            generated_content = self._generate_or_update_code(
-                impl_content=impl_content,
-                existing_code=existing_code,
-                modification_text=modification_text,
-                feedback=None # Feedback is typically for create/build loop, not direct update command
-            )
-            log_action = "updated"
-
-        else:
-            # --- CREATE MODE (Initial or with Feedback) ---
-            if feedback:
-                self.logger.info(f"Incorporating feedback from review/test:\n{feedback}")
-
-            # 2. Generate and Create Project Structure (Only in Create Mode)
-            self.logger.info("Phase 1: Determining and creating project structure...")
-            try:
-                # Ask Gemini for the structure based on the implementation plan
-                structure_text = self._generate_structure_list(impl_content)
-                # Parse the text and create directories/empty files
-                scaffolded_files = self._create_project_scaffolding(structure_text)
-                self.logger.info(f"Successfully scaffolded {len(scaffolded_files)} potential files/dirs.")
-            except (ValueError, ConnectionError, RuntimeError, OSError) as e:
-                self.logger.error(f"Failed to establish project structure: {e}", exc_info=True)
-                raise RuntimeError(f"Coder Agent failed during structure generation: {e}")
-            except Exception as e:
-                 self.logger.error(f"An unexpected error occurred during structure generation: {e}", exc_info=True)
-                 raise RuntimeError(f"An unexpected error occurred in Coder Agent structure phase: {e}")
+        # 2. Generate and Create Project Structure (Only in Create Mode)
+        self.logger.info("Phase 1: Determining and creating project structure...")
+        try:
+            # Ask Gemini for the structure based on the implementation plan
+            structure_text = self._generate_structure_list(impl_content)
+            # Parse the text and create directories/empty files
+            scaffolded_files = self._create_project_scaffolding(structure_text)
+            self.logger.info(f"Successfully scaffolded {len(scaffolded_files)} potential files/dirs.")
+        except (ValueError, ConnectionError, RuntimeError, OSError) as e:
+            self.logger.error(f"Failed to establish project structure: {e}", exc_info=True)
+            raise RuntimeError(f"Coder Agent failed during structure generation: {e}")
+        except Exception as e:
+                self.logger.error(f"An unexpected error occurred during structure generation: {e}", exc_info=True)
+                raise RuntimeError(f"An unexpected error occurred in Coder Agent structure phase: {e}")
 
 
-            # 3. Generate Code Content
-            self.logger.info("Phase 2: Generating code content for scaffolded files...")
-            generated_content = self._generate_or_update_code(
-                impl_content=impl_content,
-                existing_code=None, # No existing code for initial creation
-                modification_text=None,
-                feedback=feedback # Pass feedback for generation
-            )
-            log_action = "generated"
+        # 3. Generate Code Content
+        self.logger.info("Phase 2: Generating code content for scaffolded files...")
+        generated_content = self._generate(
+            impl_content=impl_content,
+            feedback=feedback # Pass feedback for generation
+        )
+        log_action = "generated"
 
 
-        # 4. Write Generated/Updated Code Content (Common to both modes)
+        # 4. Write Generated Code Content (Common to both modes)
         if not generated_content:
              self.logger.warning(f"AI did not return any parseable code content. No files were {log_action}.")
              # Decide if this is an error. If structure was created, maybe it's okay?
@@ -179,8 +147,7 @@ class CoderAgent(BaseAgent):
 
         try:
             self.logger.info("Sending request to Gemini API for project structure...")
-            response = self.model.generate_content(prompt)
-            structure_text = response.text
+            structure_text = self.model.generate_content(prompt)
             self.logger.info("Received structure response from Gemini API.")
             self.logger.debug(f"Structure Text (raw):\n{structure_text[:300]}...")
             if not structure_text or not structure_text.strip():
@@ -196,9 +163,9 @@ class CoderAgent(BaseAgent):
     def _create_structure_prompt(self, impl_content: str) -> str:
         """Creates the prompt to ask the LLM for the project directory structure."""
         return f"""
-Based on the following implementation plan (impl.md), generate the complete directory structure and file list for the project.
+Based on the following implementation plan (impl_*.md), generate the complete directory structure and file list for the project.
 
-**Implementation Plan (from impl.md):**
+**Implementation Plan (from impl_*.md):**
 ```markdown
 {impl_content}
 ```
@@ -414,46 +381,39 @@ my_project_root/
         return code_files
 
 
-    def _generate_or_update_code(self, impl_content: str, existing_code: dict[str, str] | None, modification_text: str | None, feedback: str | None) -> dict[str, str]:
-        """Uses Generative AI to create or update the code content for ALL files."""
+    def _generate(self, impl_content: str, feedback: str | None) -> dict[str, str]:
+        """Uses Generative AI to create the code content for ALL files."""
         if not self.model:
             raise RuntimeError("Generative model not initialized.")
 
-        is_update = bool(existing_code and modification_text)
 
-        if is_update:
-             prompt = self._create_update_prompt(impl_content, existing_code, modification_text)
-             self.logger.debug(f"Generated update prompt for Gemini (Coder):\n{prompt[:500]}...")
-        else:
-             prompt = self._create_code_generation_prompt(impl_content, feedback) # Renamed from _create_prompt
-             self.logger.debug(f"Generated create/feedback prompt for Gemini (Coder):\n{prompt[:500]}...")
+        prompt = self._create_code_generation_prompt(impl_content, feedback) # Renamed from _create_prompt
+        self.logger.debug(f"Generated create/feedback prompt for Gemini (Coder):\n{prompt[:500]}...")
         try:
-            self.logger.info("Sending request to Gemini API for code content generation/update...")
+            self.logger.info("Sending request to Gemini API for code content generation ...")
             # Consider increasing max output tokens if needed
             # generation_config = genai.types.GenerationConfig(max_output_tokens=16384) # Example
             # response = self.model.generate_content(prompt, generation_config=generation_config)
-            response = self.model.generate_content(prompt)
-
-            generated_text = response.text
-            self.logger.info("Received code generation/update response from Gemini API.")
+            generated_text = self.model.generate_content(prompt)
+            self.logger.info("Received code generation response from Gemini API.")
             self.logger.debug(f"Generated Text (first 200 chars):\n{generated_text[:200]}...")
 
             # --- Parsing the generated text into files ---
             # Use the existing robust parser
             code_files = self._parse_code_blocks(generated_text)
             if not code_files:
-                 # This is more critical now, as it means no code was generated/updated
+                 # This is more critical now, as it means no code was generated 
                  self.logger.warning("AI response parsed, but no valid code blocks (```python filename=...```) found.")
                  # Returning empty dict, the caller handles the warning/error.
 
             return code_files
 
         except google_exceptions.GoogleAPIError as e:
-            self.logger.error(f"Gemini API Error (Code Gen/Update): {e}", exc_info=True)
-            raise ConnectionError(f"Gemini API request failed for code generation/update: {e}")
+            self.logger.error(f"Gemini API Error (Code Gen ): {e}", exc_info=True)
+            raise ConnectionError(f"Gemini API request failed for code generation: {e}")
         except Exception as e:
-            self.logger.error(f"An unexpected error occurred during Gemini API call (Code Gen/Update): {e}", exc_info=True)
-            raise RuntimeError(f"Failed to generate/update code using AI: {e}")
+            self.logger.error(f"An unexpected error occurred during Gemini API call (Code Gen): {e}", exc_info=True)
+            raise RuntimeError(f"Failed to generate code using AI: {e}")
 
     def _create_code_generation_prompt(self, impl_content: str, feedback: str | None) -> str: # Renamed
         """Creates the prompt for the generative AI model to generate code for ALL files from scratch or based on feedback."""
@@ -468,9 +428,9 @@ Address these points specifically in the generated code for the relevant files.
 """
 
         prompt = f"""
-Generate the complete, runnable code content for ALL necessary files for the project described in the following implementation plan (impl.md). Adhere strictly to the plan's specifications regarding modules, classes, methods, file structure, and overall architecture.
+Generate the complete, runnable code content for ALL necessary files for the project described in the following implementation plan (impl_*.md). Adhere strictly to the plan's specifications regarding modules, classes, methods, file structure, and overall architecture.
 
-**Implementation Plan (from impl.md):**
+**Implementation Plan (from impl_*.md):**
 ```markdown
 {impl_content}
 ```
@@ -516,71 +476,6 @@ Generate the complete, runnable code content for ALL necessary files for the pro
 10. **Generate ALL files in a single response.**
 """
         return prompt
-
-    def _create_update_prompt(self, impl_content: str, existing_code: dict[str, str], modification_text: str) -> str:
-         """Creates the prompt for the generative AI model to update existing code based on instructions."""
-
-         existing_code_blocks = []
-         for filename, code in existing_code.items():
-              # Determine language hint for markdown block
-              lang = "python" # Default
-              ext = os.path.splitext(filename)[1].lower()
-              if ext == ".txt" or "requirements" in filename or ".gitignore" in filename or ".env" in filename:
-                  lang = "text"
-              elif ext == ".md":
-                  lang = "markdown"
-              elif ext == ".json":
-                  lang = "json"
-              elif ext == ".yaml" or ext == ".yml":
-                  lang = "yaml"
-              elif "dockerfile" in filename.lower():
-                   lang = "dockerfile"
-              # Add more language hints as needed
-
-              # Use the relative path (posix style) as provided by _read_all_code_files
-              existing_code_blocks.append(f"```{lang} filename={filename}\n{code}\n```")
-
-         existing_code_section = "\n\n".join(existing_code_blocks) if existing_code_blocks else "*(No existing code found)*"
-
-         prompt = f"""
-Refine and update the following existing project files based on the provided modification instructions. Ensure the changes align with the overall implementation plan.
-
-**Implementation Plan (impl.md):**
-```markdown
-{impl_content}
-```
-
-**Existing Project Files:**
-{existing_code_section}
-
-**User's Modification Instructions:**
-"{modification_text}"
-
-**Task:**
-
-1.  **Analyze the existing files, the implementation plan, and the modification instructions.**
-2.  **Apply the requested changes to the relevant files.** This might involve adding/removing functions/sections, modifying logic, fixing bugs, refactoring, updating dependencies, changing configurations, etc., as instructed.
-3.  **Ensure the updated code/content remains consistent** with the implementation plan and appropriate syntax/formatting for each file type.
-4.  **Output the complete, updated versions of ALL modified files.** If a file doesn't need changes based on the instructions, DO NOT include it in the output. If new files are explicitly required by the instructions and the plan, generate them.
-5.  **Structure the output using Markdown code blocks.** Each block MUST be prefixed with the correct language hint (`python`, `text`, `markdown`, etc.) and the intended relative filename from the project root (e.g., `filename=src/main.py`, `filename=requirements.txt`).
-
-    ```python filename=src/some_module.py
-    # Updated contents of src/some_module.py
-    # ...
-    ```
-
-    ```text filename=requirements.txt
-    # Updated requirements
-    flask>=2.1
-    requests
-    new_dependency==1.0
-    ```
-
-6.  **Focus only on generating the file contents.** Do not add explanatory text outside the formatted code blocks.
-
-**Generate the complete, updated code/content blocks for all affected files below:**
-"""
-         return prompt
 
     # ===========================================
     # --- File Parsing and Writing ---

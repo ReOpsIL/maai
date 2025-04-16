@@ -11,58 +11,45 @@ class ArchitectAgent(BaseAgent):
     plan (integ.md).
     """
 
-    def run(self, modification_text: str | None = None, update_mode: bool = False) -> list[str]:
+    def run(self) -> list[str]:
         """
         Executes the Architect agent's task: creating or updating component-specific
         implementation plans (impl_*.md) and an integration plan (integ.md).
 
-        Args:
-            modification_text: Instructions on how to modify the existing plans
-                               (used when update_mode is True).
-            update_mode: If True, use modification_text and potentially updated
-                         idea.md to regenerate plans. The previous impl.md might be
-                         read for context by _generate_or_update_plan.
-                         If False, create new plans based on idea.md.
-
         Returns:
-            A list of paths to the generated/updated markdown files.
+            A list of paths to the generated  markdown files.
 
         Raises:
             FileNotFoundError: If idea.md cannot be read.
             RuntimeError: If AI generation fails or parsing fails.
             IOError: If writing output files fails.
         """
-        self.logger.info(f"Running Architect Agent for project: {self.project_name} (Update Mode: {update_mode})")
+        self.logger.info(f"Running Architect Agent for project: {self.project_name})")
         idea_md_path = os.path.join(self.docs_path, "idea.md")
-        # Define potential path for old impl.md (used for context in update mode)
-        old_impl_md_path = os.path.join(self.docs_path, "impl.md")
 
         self.logger.info(f"Reading concept from: {idea_md_path}")
         idea_content = self._read_file(idea_md_path)
         if idea_content is None:
             raise FileNotFoundError(f"Could not read idea.md for project {self.project_name}. Please ensure it exists.")
 
-        self.logger.info("Attempting to generate or update implementation plan using AI.")
+        self.logger.info("Attempting to generate implementation plan using AI.")
         try:
             # Generate the combined plan string from AI
-            combined_plan_output = self._generate_or_update_plan(
-                idea_content=idea_content,
-                modification_text=modification_text,
-                update_mode=update_mode,
-                old_impl_md_path=old_impl_md_path # Pass path for reading context
+            combined_plan_output = self._generate(
+                idea_content=idea_content
             )
-            self.logger.info("Successfully generated/updated implementation plan using AI.")
+            self.logger.info("Successfully generated implementation plan using AI.")
         except (FileNotFoundError, ValueError, ConnectionError, RuntimeError) as e: # Added FileNotFoundError
-            self.logger.error(f"Failed to generate/update implementation plan using AI: {e}")
+            self.logger.error(f"Failed to generate implementation plan using AI: {e}")
             raise RuntimeError(f"Architect Agent failed: {e}")
         except Exception as e:
-            self.logger.error(f"An unexpected error occurred during plan generation/update: {e}", exc_info=True)
+            self.logger.error(f"An unexpected error occurred during plan generation : {e}", exc_info=True)
             raise RuntimeError(f"An unexpected error occurred in Architect Agent: {e}")
         self.logger.info("Parsing generated plan into component and integration files.")
         try:
             # Parse the combined output and write individual files
             generated_files = self._parse_and_write_plans(combined_plan_output)
-            self.logger.info(f"Successfully created/updated implementation files: {generated_files}")
+            self.logger.info(f"Successfully created implementation files: {generated_files}")
         except ValueError as e:
             self.logger.error(f"Failed to parse AI response: {e}", exc_info=True)
             raise RuntimeError(f"Architect Agent failed during parsing: {e}")
@@ -75,10 +62,10 @@ class ArchitectAgent(BaseAgent):
 
         return generated_files
 
-    def _generate_or_update_plan(self, idea_content: str, modification_text: str | None, update_mode: bool, old_impl_md_path: str) -> str:
+    def _generate(self, idea_content: str) -> str:
         """
-        Uses Generative AI to create or update the implementation plan string.
-        In update mode, it reads the old impl.md for context if it exists.
+        Uses Generative AI to create the implementation plan string.
+        In update mode, it reads the old impl_*.md for context if it exists.
         """
         # Model initialization is now handled by BaseAgent
         if not self.model:
@@ -86,26 +73,13 @@ class ArchitectAgent(BaseAgent):
             raise RuntimeError("ArchitectAgent requires a configured Generative Model.")
 
         existing_impl_content = None
-        if update_mode:
-            if not modification_text:
-                 raise ValueError("Modification text is required when running Architect in update mode.")
-            self.logger.info(f"Attempting to read previous implementation plan for context: {old_impl_md_path}")
-            # Read the old impl.md for context, but don't fail if it doesn't exist
-            existing_impl_content = self._read_file(old_impl_md_path, optional=True)
-            if existing_impl_content:
-                 self.logger.info(f"Using content from {old_impl_md_path} as context for update.")
-            else:
-                 self.logger.warning(f"Previous plan {old_impl_md_path} not found or empty. Updating based on idea and modifications only.")
-            prompt = self._create_update_prompt(existing_impl_content, modification_text, idea_content) # Pass content (or None)
-            self.logger.debug(f"Generated update prompt for Gemini (Architect):\n{prompt[:500]}...")
-        else:
-            # Create mode
-            prompt = self._create_prompt(idea_content)
-            self.logger.debug(f"Generated create prompt for Gemini (Architect):\n{prompt[:500]}...")
+        
+        # Create mode
+        prompt = self._create_prompt(idea_content)
+        self.logger.debug(f"Generated create prompt for Gemini (Architect):\n{prompt[:500]}...")
         try:
             self.logger.info("Sending request to Gemini API for architecture plan...")
-            response = self.model.generate_content(prompt)
-            generated_plan = response.text
+            generated_plan = self.model.generate_content(prompt)
             self.logger.info("Received architecture plan from Gemini API.")
             self.logger.debug(f"Generated Plan (first 200 chars):\n{generated_plan[:200]}...")
             return generated_plan
@@ -239,13 +213,13 @@ Analyze the following project concept (provided in Markdown) and generate a set 
         """
         Creates the prompt for the generative AI model to update implementation plans.
         Note: This currently regenerates all plans based on the idea and modifications,
-        using the old impl.md (if available) only as context for the previous state.
+        using the old impl_*.md (if available) only as context for the previous state.
         A future improvement could involve reading and updating individual component files.
         """
         existing_plan_section = ""
         if existing_impl_content:
             existing_plan_section = f"""
-**Previous Implementation Plan (impl.md - for context only):**
+**Previous Implementation Plan (impl_*.md - for context only):**
 ```markdown
 {existing_impl_content}
 ```
