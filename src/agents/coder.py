@@ -1,7 +1,7 @@
 
 import os
-import google.generativeai as genai
-from google.api_core import exceptions as google_exceptions
+
+
 import re
 from pathlib import Path
 from .base_agent import BaseAgent
@@ -146,18 +146,15 @@ class CoderAgent(BaseAgent):
         self.logger.debug(f"Generated structure prompt for Gemini:\n{prompt[:500]}...")
 
         try:
-            self.logger.info("Sending request to Gemini API for project structure...")
+            self.logger.info("Sending request to LLM API for project structure...")
             structure_text = self.model.generate_content(prompt)
-            self.logger.info("Received structure response from Gemini API.")
+            self.logger.info("Received structure response from LLM API.")
             self.logger.debug(f"Structure Text (raw):\n{structure_text[:300]}...")
             if not structure_text or not structure_text.strip():
                 raise ValueError("Gemini returned an empty response for the project structure.")
             return structure_text
-        except google_exceptions.GoogleAPIError as e:
-            self.logger.error(f"Gemini API Error (Structure): {e}", exc_info=True)
-            raise ConnectionError(f"Gemini API request failed for structure generation: {e}")
         except Exception as e:
-            self.logger.error(f"An unexpected error occurred during Gemini API call (Structure): {e}", exc_info=True)
+            self.logger.error(f"An unexpected error occurred during LLM API call (Structure): {e}", exc_info=True)
             raise RuntimeError(f"Failed to generate structure using AI: {e}")
 
     def _create_structure_prompt(self, impl_content: str) -> str:
@@ -390,12 +387,12 @@ my_project_root/
         prompt = self._create_code_generation_prompt(impl_content, feedback) # Renamed from _create_prompt
         self.logger.debug(f"Generated create/feedback prompt for Gemini (Coder):\n{prompt[:500]}...")
         try:
-            self.logger.info("Sending request to Gemini API for code content generation ...")
+            self.logger.info("Sending request to LLM API for code content generation ...")
             # Consider increasing max output tokens if needed
             # generation_config = genai.types.GenerationConfig(max_output_tokens=16384) # Example
             # response = self.model.generate_content(prompt, generation_config=generation_config)
             generated_text = self.model.generate_content(prompt)
-            self.logger.info("Received code generation response from Gemini API.")
+            self.logger.info("Received code generation response from LLM API.")
             self.logger.debug(f"Generated Text (first 200 chars):\n{generated_text[:200]}...")
 
             # --- Parsing the generated text into files ---
@@ -407,12 +404,8 @@ my_project_root/
                  # Returning empty dict, the caller handles the warning/error.
 
             return code_files
-
-        except google_exceptions.GoogleAPIError as e:
-            self.logger.error(f"Gemini API Error (Code Gen ): {e}", exc_info=True)
-            raise ConnectionError(f"Gemini API request failed for code generation: {e}")
         except Exception as e:
-            self.logger.error(f"An unexpected error occurred during Gemini API call (Code Gen): {e}", exc_info=True)
+            self.logger.error(f"An unexpected error occurred during LLM API call (Code Gen): {e}", exc_info=True)
             raise RuntimeError(f"Failed to generate code using AI: {e}")
 
     def _create_code_generation_prompt(self, impl_content: str, feedback: str | None) -> str: # Renamed

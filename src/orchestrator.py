@@ -6,7 +6,7 @@ import shutil
 import asyncio
 
 from dotenv import load_dotenv
-import google.generativeai as genai
+
 from colorama import Fore, Style, init as colorama_init
 import glob
 
@@ -20,7 +20,7 @@ from utils import slugify, load_config
 # Import agents
 from agents import (
     InnovatorAgent, ArchitectAgent, CoderAgent, ReviewerAgent, TesterAgent,
-    DocumenterAgent, MarketAnalystAgent, ResearchAgent
+    DocumenterAgent, MarketAnalystAgent, ResearchAgent, BusinessAgent
 )
 
 # --- Constants ---
@@ -97,6 +97,17 @@ def handle_idea_command(idea_text: str, project_name: str | None, projects_dir: 
         idea_md_path = innovator.run(idea_text=idea_text)
         print(f"{SUCCESS_COLOR}Successfully processed idea for project '{project_name}'. Concept saved to: {idea_md_path}")
     except Exception as e: logger.error(f"Innovator Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error processing idea: {e}")
+
+
+def handle_business_command(project_name: str | None, projects_dir: str):
+    logger.info(f"Handling '--business', Project='{project_name}'")
+    project_path = get_project_path(project_name, projects_dir)
+    print(f"{AGENT_COLOR}Initializing Business Agent...{RESET_ALL}")
+    business = BusinessAgent(project_name=project_name, project_path=project_path)
+    try:
+        business_md_path = business.run()
+        print(f"{SUCCESS_COLOR}Successfully geenrated business perspective for project '{project_name}'. Business report saved to: {business_md_path}")
+    except Exception as e: logger.error(f"Business Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error geenrating business perspective for project: {e}")
 
 
 def handle_analyze_idea_command(project_name: str, projects_dir: str):
@@ -397,11 +408,12 @@ async def main(execute_command_func):
     # --- Action Flags ---
     action_group.add_argument('--list', action='store_true', help='List projects')
     action_group.add_argument('--idea', type=str, metavar='TEXT', help='Generate new project idea')
+    action_group.add_argument('--business', action='store_true', help='Generate business docs (business.md) (requires --project)')
     action_group.add_argument('--research', action='store_true', help='Perform technical research for idea (requires --project)')
     action_group.add_argument('--analyze', action='store_true', help='Perform market analysis for idea (requires --project)')
     action_group.add_argument('--docs', type=str, metavar='TYPE', help=f"Generate specific doc (requires --project).\nTypes: {', '.join(sorted(DocumenterAgent.SUPPORTED_DOC_TYPES))}")
-    action_group.add_argument('--build', action='store_true', help='Generate/update architecture docs (impl_*.md) (requires --project)')
-    action_group.add_argument('--code', action='store_true', help='Generate/update code based on impl_*.md (requires --project)')
+    action_group.add_argument('--build', action='store_true', help='Generate architecture docs (impl_*.md) (requires --project)')
+    action_group.add_argument('--code', action='store_true', help='Generate code based on impl_*.md (requires --project)')
     action_group.add_argument('--review', action='store_true', help='Review generated code and create review.md (requires --project)')
 
     # --- Common Arguments ---
@@ -429,6 +441,8 @@ async def main(execute_command_func):
             handle_list_command(projects_dir)
         elif args.idea: 
             handle_idea_command(idea_text=args.idea, project_name=project_name, projects_dir=projects_dir)
+        elif args.business: 
+            handle_business_command(project_name=project_name, projects_dir=projects_dir)
         elif args.research:
             if not project_name: parser.error("--research requires --project NAME")
             handle_research_command(project_name=project_name, projects_dir=projects_dir)

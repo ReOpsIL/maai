@@ -153,7 +153,7 @@ class BaseAgent(ABC):
     *   Check for `GEMINI_API_KEY`.
     *   Initialize the Google Generative AI client.
     *   Construct a prompt to expand the user's idea into features, user stories, etc.
-    *   Call the Gemini API.
+    *   Call the LLM API.
     *   Determine project name (generate if needed).
     *   Ensure project directory structure exists.
     *   Write/Append the generated content to `projects/<name>/docs/idea.md`.

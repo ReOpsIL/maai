@@ -1,6 +1,6 @@
 import os
-import google.generativeai as genai
-from google.api_core import exceptions as google_exceptions
+
+
 import re # Keep re for potential future parsing if needed
 
 import glob
@@ -122,9 +122,9 @@ class ReviewerAgent(BaseAgent):
         self.logger.debug(f"Generated review prompt for Gemini:\n{prompt[:500]}...")
 
         try:
-            self.logger.info("Sending request to Gemini API for code review...")
+            self.logger.info("Sending request to LLM API for code review...")
             review_text = self.model.generate_content(prompt)
-            self.logger.info("Received review response from Gemini API.")
+            self.logger.info("Received review response from LLM API.")
             self.logger.debug(f"Raw AI Review Response:\n{review_text}")
 
             # --- Interpret LLM Response ---
@@ -173,12 +173,8 @@ class ReviewerAgent(BaseAgent):
                 self.logger.warning(f"AI review response was ambiguous: '{review_text[:100]}...'. Treating as failure.")
                 formatted_feedback = f"AI Review Feedback (Ambiguous - Needs Attention):\n-------------------\n{review_text}"
                 return formatted_feedback
-
-        except google_exceptions.GoogleAPIError as e:
-            self.logger.error(f"Gemini API Error (Reviewer): {e}", exc_info=True)
-            raise ConnectionError(f"Gemini API request failed for code review: {e}")
         except Exception as e:
-            self.logger.error(f"An unexpected error occurred during Gemini API call (Reviewer): {e}", exc_info=True)
+            self.logger.error(f"An unexpected error occurred during LLM API call (Reviewer): {e}", exc_info=True)
             raise RuntimeError(f"Failed to perform AI code review: {e}")
 
 

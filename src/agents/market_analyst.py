@@ -1,6 +1,6 @@
 import os
-import google.generativeai as genai
-from google.api_core import exceptions as google_exceptions
+
+
 from .base_agent import BaseAgent
 
 class MarketAnalystAgent(BaseAgent):
@@ -41,14 +41,11 @@ class MarketAnalystAgent(BaseAgent):
         try:
             # Create mode where existing file was missing
             prompt = self._create_analysis_prompt(idea_content)
-            self.logger.debug(f"Generated create analysis prompt for Gemini:\n{prompt[:500]}...")
+            self.logger.debug(f"Generated create analysis prompt for:\n{prompt[:500]}...")
             generated_analysis = self.model.generate_content(prompt)
             log_action = "generated"
-            self.logger.info(f"Received {log_action} market analysis response from Gemini API.")
+            self.logger.info(f"Received {log_action} market analysis response from LLM API.")
             self.logger.debug(f"Generated Analysis (first 200 chars):\n{generated_analysis[:200]}...")
-        except google_exceptions.GoogleAPIError as e:
-            self.logger.error(f"Gemini API Error (Market Analyst): {e}", exc_info=True)
-            raise ConnectionError(f"Gemini API request failed for market analysis: {e}")
         except Exception as e:
             self.logger.error(f"An unexpected error occurred during analysis generation: {e}", exc_info=True)
             raise RuntimeError(f"Failed to generate market analysis using AI: {e}")

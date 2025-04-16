@@ -1,6 +1,6 @@
 import os
-import google.generativeai as genai
-from google.api_core import exceptions as google_exceptions
+
+
 from .base_agent import BaseAgent
 
 class DocumenterAgent(BaseAgent):
@@ -127,20 +127,16 @@ class DocumenterAgent(BaseAgent):
         prompt = prompt_func(idea_content, impl_content, source_code)
         self.logger.debug(f"Generated prompt for '{doc_type}' using {prompt_func.__name__}:\n{prompt[:500]}...")
         try:
-            self.logger.info(f"Sending request to Gemini API for '{doc_type}' documentation...")
+            self.logger.info(f"Sending request to LLM API for '{doc_type}' documentation...")
             # Consider adjusting token limits if context is large
             # generation_config = genai.types.GenerationConfig(max_output_tokens=4096)
             # response = self.model.generate_content(prompt, generation_config=generation_config)
             generated_docs = self.model.generate_content(prompt)
-            self.logger.info(f"Received '{doc_type}' documentation response from Gemini API.")
+            self.logger.info(f"Received '{doc_type}' documentation response from LLM API.")
             self.logger.debug(f"Generated '{doc_type}' Docs (first 200 chars):\n{generated_docs[:200]}...")
             return generated_docs
-
-        except google_exceptions.GoogleAPIError as e:
-            self.logger.error(f"Gemini API Error (Documenter - {doc_type}): {e}", exc_info=True)
-            raise ConnectionError(f"Gemini API request failed for '{doc_type}' documentation: {e}")
         except Exception as e:
-            self.logger.error(f"An unexpected error occurred during Gemini API call (Documenter - {doc_type}): {e}", exc_info=True)
+            self.logger.error(f"An unexpected error occurred during LLM API call (Documenter - {doc_type}): {e}", exc_info=True)
             raise RuntimeError(f"Failed to generate '{doc_type}' documentation using AI: {e}")
 
 
@@ -402,4 +398,3 @@ Generate a Software Design Document (SDD) in Markdown format based on the provid
 """
          return prompt
 
-    # Removed _create_update_prompt as update mode is deferred

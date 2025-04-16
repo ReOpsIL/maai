@@ -1,7 +1,6 @@
 import os
 import re # Added for parsing
-import google.generativeai as genai
-from google.api_core import exceptions as google_exceptions
+
 from .base_agent import BaseAgent
 
 class ArchitectAgent(BaseAgent):
@@ -13,7 +12,7 @@ class ArchitectAgent(BaseAgent):
 
     def run(self) -> list[str]:
         """
-        Executes the Architect agent's task: creating or updating component-specific
+        Executes the Architect agent's task: creating component-specific
         implementation plans (impl_*.md) and an integration plan (integ.md).
 
         Returns:
@@ -73,21 +72,18 @@ class ArchitectAgent(BaseAgent):
             raise RuntimeError("ArchitectAgent requires a configured Generative Model.")
 
         existing_impl_content = None
-        
-        # Create mode
+         
+        # Create mode 
         prompt = self._create_prompt(idea_content)
         self.logger.debug(f"Generated create prompt for Gemini (Architect):\n{prompt[:500]}...")
         try:
-            self.logger.info("Sending request to Gemini API for architecture plan...")
+            self.logger.info("Sending request to LLM API for architecture plan...")
             generated_plan = self.model.generate_content(prompt)
-            self.logger.info("Received architecture plan from Gemini API.")
+            self.logger.info("Received architecture plan from LLM API.")
             self.logger.debug(f"Generated Plan (first 200 chars):\n{generated_plan[:200]}...")
             return generated_plan
-        except google_exceptions.GoogleAPIError as e:
-            self.logger.error(f"Gemini API Error (Architect): {e}", exc_info=True)
-            raise ConnectionError(f"Gemini API request failed for architecture plan: {e}")
         except Exception as e:
-            self.logger.error(f"An unexpected error occurred during Gemini API call (Architect): {e}", exc_info=True)
+            self.logger.error(f"An unexpected error occurred during LLM API call (Architect): {e}", exc_info=True)
             raise RuntimeError(f"Failed to generate architecture plan using AI: {e}")
 
 

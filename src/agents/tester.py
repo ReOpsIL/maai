@@ -1,6 +1,6 @@
 import os
-import google.generativeai as genai
-from google.api_core import exceptions as google_exceptions
+
+
 
 import re
 import subprocess
@@ -153,12 +153,12 @@ class TesterAgent(BaseAgent):
         prompt = self._create_test_prompt(impl_content, source_code)
         self.logger.debug(f"Generated create prompt for Gemini (Tester):\n{prompt[:500]}...")
         try:
-            self.logger.info("Sending request to Gemini API for test generation...")
+            self.logger.info("Sending request to LLM API for test generation...")
             # May need higher token limits for tests + source code context
             # generation_config = genai.types.GenerationConfig(max_output_tokens=8192)
             # response = model.generate_content(prompt, generation_config=generation_config)
             generated_text = self.model.generate_content(prompt)
-            self.logger.info("Received test generation response from Gemini API.")
+            self.logger.info("Received test generation response from LLM API.")
             self.logger.debug(f"Generated Test Text (first 200 chars):\n{generated_text[:200]}...")
 
             test_files = self._parse_code_blocks(generated_text) # Use same parser as Coder
@@ -166,12 +166,8 @@ class TesterAgent(BaseAgent):
                 self.logger.warning("AI response parsed, but no valid test code blocks found.")
 
             return test_files
-
-        except google_exceptions.GoogleAPIError as e:
-            self.logger.error(f"Gemini API Error (Tester): {e}", exc_info=True)
-            raise ConnectionError(f"Gemini API request failed for test generation: {e}")
         except Exception as e:
-            self.logger.error(f"An unexpected error occurred during Gemini API call (Tester): {e}", exc_info=True)
+            self.logger.error(f"An unexpected error occurred during LLM API call (Tester): {e}", exc_info=True)
             raise RuntimeError(f"Failed to generate tests using AI: {e}")
 
     def _create_test_prompt(self, impl_content: str, source_code: dict[str, str]) -> str: # For initial creation

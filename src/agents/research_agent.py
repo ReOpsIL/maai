@@ -1,6 +1,6 @@
 import os
 
-from google.api_core import exceptions as google_exceptions
+
 from .base_agent import BaseAgent
 
 class ResearchAgent(BaseAgent):
@@ -37,12 +37,8 @@ class ResearchAgent(BaseAgent):
             prompt = self._create_research_prompt(idea_content)
             self.logger.debug(f"Generated research prompt for Gemini:\n{prompt[:500]}...")
             research_summary = self.model.generate_content(prompt)
-            self.logger.info("Received research summary response from Gemini API.")
+            self.logger.info("Received research summary response from LLM API.")
             self.logger.debug(f"Generated Research Summary (first 200 chars):\n{research_summary[:200]}...")
-
-        except google_exceptions.GoogleAPIError as e:
-            self.logger.error(f"Gemini API Error (Research Agent): {e}", exc_info=True)
-            raise ConnectionError(f"Gemini API request failed for research summary: {e}")
         except Exception as e:
             self.logger.error(f"An unexpected error occurred during research generation: {e}", exc_info=True)
             raise RuntimeError(f"Failed to generate research summary using AI: {e}")
