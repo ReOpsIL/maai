@@ -11,7 +11,7 @@ class OpenAIClient(AiClient):
         """
         Initializes the ai model client api.
         """
- 
+
         self.logger = logging.getLogger(self.__class__.__name__)
 
         # Load configuration
@@ -20,9 +20,9 @@ class OpenAIClient(AiClient):
         self.provider = config.get('llm', {}).get('provider')
         self.reasoning_effort = config.get('llm', {}).get('reasoning_effort')
         self.temperature = config.get('llm', {}).get('temperature')
-        
+
         self.logger.info(f"Using LLM - Provider: {self.provider}, Model: {self.model_name}, Reasoning effort: {self.reasoning_effort}")
-        
+
         # Configure xAI API (ensure XAI_API_KEY is set in the environment)
         try:
             if "grok" in self.provider:
@@ -34,9 +34,9 @@ class OpenAIClient(AiClient):
             elif "openrouter" in self.provider:
                 self.api_key = os.environ.get("OPENROUTER_API_KEY")
                 self.base_url="https://openrouter.ai/api/v1"
-            
+
             self.model = OpenAI( api_key=self.api_key, base_url=self.base_url)
-            
+
         except ValueError as e:
             self.logger.error(f"API Key Configuration Error: {e}")
             raise Exception("FATAL error - Stopping!")
@@ -44,7 +44,7 @@ class OpenAIClient(AiClient):
             self.logger.error(f"An unexpected error occurred during API configuration: {e}")
             raise Exception("FATAL error - Stopping!")
 
-        self.logger.info(f"Grok initialized for model: {self.model_name}")
+        self.logger.info(f"{self.provider} initialized for model: {self.model_name}")
 
 
     def generate_content(self, prompt: str) -> str:
@@ -71,7 +71,10 @@ class OpenAIClient(AiClient):
                     messages=messages,
                     temperature=self.temperature,
                 )
-            
+
+            if completion.choices is None:
+                raise Exception(str(completion.error))
+
             return completion.choices[0].message.content
         except Exception as e:
             self.logger.error(f"Error generating response from model API: {e}")

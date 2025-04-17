@@ -3,10 +3,9 @@
 
 llm:
   # The model name to use for all agents (e.g., 'gemini-2.5-pro-exp-03-25/gemini-2.5-pro-preview-03-25')
-  model: 'grok-3-mini-beta' # 'gemini-2.5-pro-exp-03-25'
-  provider: 'grok' # 'gemini'
-  reasoning_effort: 'none'
+  model: "google/gemini-2.5-pro-exp-03-25:free" # 'deepseek/deepseek-v3-base:free' #'grok-3-mini-beta' # 'google/gemini-2.5-pro-exp-03-25:free'
+  provider: "openrouter" # 'grok' 'groq' 'gemini' 'openai'
+  reasoning_effort: "none"
   temperature: 0.7
-
 # Add other configurations below as needed
 # e.g., agent-specific settings, temperature, max_retries, etc.

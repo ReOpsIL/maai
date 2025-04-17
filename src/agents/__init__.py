@@ -10,6 +10,8 @@ from .documenter import DocumenterAgent
 from .market_analyst import MarketAnalystAgent
 from .research_agent import ResearchAgent
 from .business import BusinessAgent
+from .scoring import ScoringAgent
+
 __all__ = [
     "BaseAgent",
     "InnovatorAgent",
@@ -21,4 +23,5 @@ __all__ = [
     "MarketAnalystAgent",
     "ResearchAgent",
     "BusinessAgent",
+    "ScoringAgent"
 ]

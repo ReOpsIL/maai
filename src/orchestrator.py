@@ -20,7 +20,7 @@ from utils import slugify, load_config
 # Import agents
 from agents import (
     InnovatorAgent, ArchitectAgent, CoderAgent, ReviewerAgent, TesterAgent,
-    DocumenterAgent, MarketAnalystAgent, ResearchAgent, BusinessAgent
+    DocumenterAgent, MarketAnalystAgent, ResearchAgent, BusinessAgent, ScoringAgent
 )
 
 # --- Constants ---
@@ -78,7 +78,7 @@ def list_projects(projects_dir: str):
     except OSError as e: logger.error(f"Error listing projects in {projects_dir}: {e}"); print(f"{ERROR_COLOR}Error accessing projects directory: {e}")
 
 
-def handle_list_command(projects_dir: str): 
+def handle_list_command(projects_dir: str):
     list_projects(projects_dir)
 
 
@@ -108,6 +108,16 @@ def handle_business_command(project_name: str | None, projects_dir: str):
         business_md_path = business.run()
         print(f"{SUCCESS_COLOR}Successfully geenrated business perspective for project '{project_name}'. Business report saved to: {business_md_path}")
     except Exception as e: logger.error(f"Business Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error geenrating business perspective for project: {e}")
+
+def handle_scoring_command(project_name: str | None, projects_dir: str):
+    logger.info(f"Handling '--scoring', Project='{project_name}'")
+    project_path = get_project_path(project_name, projects_dir)
+    print(f"{AGENT_COLOR}Initializing Scoring Agent...{RESET_ALL}")
+    scoring = ScoringAgent(project_name=project_name, project_path=project_path)
+    try:
+        scoring_md_path = scoring.run()
+        print(f"{SUCCESS_COLOR}Successfully geenrated business perspective scoring for project '{project_name}'. Score report saved to: {scoring_md_path}")
+    except Exception as e: logger.error(f"Scoring Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error geenrating scoring business perspective for project: {e}")
 
 
 def handle_analyze_idea_command(project_name: str, projects_dir: str):
@@ -308,18 +318,18 @@ async def handle_review_command(project_name: str, projects_dir: str, execute_co
             logger.error("impl_*.md not found. Cannot proceed.")
             print(f"{ERROR_COLOR}Error: impl_*.md is required for review.")
             return
-        
+
         for file in impl_files:
             try:
                 impl_content += DocumenterAgent(project_name, project_path)._read_file(file) + "\n\n"
             except Exception as e:
                 logger.error(f"Failed to read {file}: {e}")
-        
+
         if not impl_content.strip():
             logger.error("No content read from impl_*.md files. Cannot proceed.")
             print(f"{ERROR_COLOR}Error: impl_*.md is required for review.")
             return
-        
+
     except Exception as e:
         logger.error(f"Failed to read implementation plan: {e}", exc_info=True)
         print(f"{ERROR_COLOR}Error reading implementation plan: {e}")
@@ -409,6 +419,7 @@ async def main(execute_command_func):
     action_group.add_argument('--list', action='store_true', help='List projects')
     action_group.add_argument('--idea', type=str, metavar='TEXT', help='Generate new project idea')
     action_group.add_argument('--business', action='store_true', help='Generate business docs (business.md) (requires --project)')
+    action_group.add_argument('--scoring', action='store_true', help='Generate scoring docs (scoring.md) (requires --project)')
     action_group.add_argument('--research', action='store_true', help='Perform technical research for idea (requires --project)')
     action_group.add_argument('--analyze', action='store_true', help='Perform market analysis for idea (requires --project)')
     action_group.add_argument('--docs', type=str, metavar='TYPE', help=f"Generate specific doc (requires --project).\nTypes: {', '.join(sorted(DocumenterAgent.SUPPORTED_DOC_TYPES))}")
@@ -437,12 +448,14 @@ async def main(execute_command_func):
             sys.exit(1)
     # --- Dispatch ---
     try:
-        if args.list: 
+        if args.list:
             handle_list_command(projects_dir)
-        elif args.idea: 
+        elif args.idea:
             handle_idea_command(idea_text=args.idea, project_name=project_name, projects_dir=projects_dir)
-        elif args.business: 
+        elif args.business:
             handle_business_command(project_name=project_name, projects_dir=projects_dir)
+        elif args.scoring:
+            handle_scoring_command(project_name=project_name, projects_dir=projects_dir)
         elif args.research:
             if not project_name: parser.error("--research requires --project NAME")
             handle_research_command(project_name=project_name, projects_dir=projects_dir)
