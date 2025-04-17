@@ -43,7 +43,7 @@ class BusinessAgent(BaseAgent):
         # Determine content to write
 
         # Create mode - add prefix
-        content_prefix = f"# Project {self.project_name} idea to business perspective: {self.project_name}\n\n"
+        content_prefix = f"# Project **{self.project_name}** business perspective:\n\n"
         final_content_to_write = content_prefix + generated_output
         write_action = "wrote"
 

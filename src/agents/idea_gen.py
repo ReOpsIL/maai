@@ -6,9 +6,9 @@ class IdeaGenAgent(BaseAgent):
     Pros and Cons a simple user idea in business perspective.
     """
 
-    def run(self, idea_subject_text: str, num_ideas: int):
+    def run(self, idea_subject_text: str, subject_name: str, num_ideas: int):
         """
-        Executes the IdeaGenAgent  task: creating the ideas_list.json file.
+        Executes the IdeaGenAgent  task: creating the subject_name.json file.
 
         """
         self.logger.info(f"Running IdeaGenAgent for project: {self.project_name})")
@@ -25,7 +25,7 @@ class IdeaGenAgent(BaseAgent):
             raise RuntimeError("IdeaGenAgent requires a configured Generative Model.")
 
 
-        ideas_list_path = os.path.join(self.docs_path, "ideas_list.json")
+        ideas_list_path = os.path.join(self.docs_path, f"{subject_name}.json")
 
         # Create mode
         prompt = self._create_prompt(idea_subject_text, num_ideas)
@@ -51,7 +51,7 @@ class IdeaGenAgent(BaseAgent):
             self.logger.info(f"Successfully {write_action} {ideas_list_path}")
         except Exception as e:
             # Error already logged by _write_file
-            raise IOError(f"Failed to write ideas_list.json for project {self.project_name}: {e}")
+            raise IOError(f"Failed to write {subject_name}.json for project {self.project_name}: {e}")
 
         return ideas_list_path
 

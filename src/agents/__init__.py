@@ -11,6 +11,7 @@ from .market_analyst import MarketAnalystAgent
 from .research_agent import ResearchAgent
 from .business import BusinessAgent
 from .scoring import ScoringAgent
+from .idea_gen import IdeaGenAgent
 
 __all__ = [
     "BaseAgent",
@@ -23,5 +24,6 @@ __all__ = [
     "MarketAnalystAgent",
     "ResearchAgent",
     "BusinessAgent",
-    "ScoringAgent"
+    "ScoringAgent",
+    "IdeaGenAgent",
 ]

@@ -1,9 +1,12 @@
 import argparse
+from ast import arg
 import logging
 import os
 import sys
 import shutil
 import asyncio
+import re
+import json
 
 from dotenv import load_dotenv
 
@@ -20,7 +23,8 @@ from utils import slugify, load_config
 # Import agents
 from agents import (
     InnovatorAgent, ArchitectAgent, CoderAgent, ReviewerAgent, TesterAgent,
-    DocumenterAgent, MarketAnalystAgent, ResearchAgent, BusinessAgent, ScoringAgent
+    DocumenterAgent, MarketAnalystAgent, ResearchAgent, BusinessAgent, ScoringAgent,
+    IdeaGenAgent
 )
 
 # --- Constants ---
@@ -81,6 +85,40 @@ def list_projects(projects_dir: str):
 def handle_list_command(projects_dir: str):
     list_projects(projects_dir)
 
+def handle_idea_list_gen_command(idea_subject_text: str, subject_name:str, num_ideas: int, project_name: str | None, projects_dir: str):
+    logger.info(f"Handling '--idea' action: Subject='{idea_subject_text[:50]} - Number of ideas to generate: {num_ideas}...', Project='{project_name}'")
+    print(f"{AGENT_COLOR}Initializing IdeaGenAgent...{RESET_ALL}")
+    project_path = get_project_path(project_name, projects_dir)
+
+    idea_list_gen = IdeaGenAgent(project_name=project_name, project_path=project_path)
+    try:
+        idea_list_json_path = idea_list_gen.run(idea_subject_text=idea_subject_text, subject_name=subject_name, num_ideas=num_ideas)
+        print(f"{SUCCESS_COLOR}Successfully processed idea subject for project '{project_name}'. Concept saved to: {idea_list_json_path}")
+    except Exception as e: logger.error(f"IdeaGenAgent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error processing idea: {e}")
+
+def clean_text(text):
+    # Replace any character that is not a-z, A-Z, or 0-9 with an underscore
+    return re.sub(r'[^a-zA-Z0-9]', '_', text)
+
+def handle_idea_list_bulk_command(bulk_file: str, project_name: str | None, projects_dir: str):
+    with open(bulk_file, 'r') as f:
+        data = json.load(f)
+
+    startup_ideas = data.get("startup_ideas", [])
+    for idea in startup_ideas:
+        print(f"ID: {idea['id']}")
+        print(f"Category: {idea['category']}")
+        print(f"Title: {idea['title']}")
+        print(f"Description: {idea['description']}")
+        print("-" * 40)
+
+        new_project_name = clean_text(f"{idea['id']}_{idea['title']}")
+        new_projects_dir = os.path.join(projects_dir, clean_text(idea['category']))
+
+        os.makedirs(new_projects_dir, exist_ok=True)
+        handle_idea_command(idea['description'], project_name=new_project_name, projects_dir=new_projects_dir)
+        handle_business_command(project_name=new_project_name, projects_dir=new_projects_dir)
+        handle_scoring_command(project_name=new_project_name, projects_dir=new_projects_dir)
 
 def handle_idea_command(idea_text: str, project_name: str | None, projects_dir: str):
     logger.info(f"Handling '--idea' action: Text='{idea_text[:50]}...', Project='{project_name}'")
@@ -417,6 +455,8 @@ async def main(execute_command_func):
 
     # --- Action Flags ---
     action_group.add_argument('--list', action='store_true', help='List projects')
+    action_group.add_argument('--subject', type=str, metavar='TEXT', help='Generate new list of projects ideas based on subject (requiers --num_ideas --subject_name)')
+    action_group.add_argument('--bulk', type=str, metavar='TEXT', help='Generate new projects ideas based on subject json file')
     action_group.add_argument('--idea', type=str, metavar='TEXT', help='Generate new project idea')
     action_group.add_argument('--business', action='store_true', help='Generate business docs (business.md) (requires --project)')
     action_group.add_argument('--scoring', action='store_true', help='Generate scoring docs (scoring.md) (requires --project)')
@@ -431,6 +471,10 @@ async def main(execute_command_func):
     parser.add_argument('--project', type=str, metavar='NAME', help='Project name (required for most actions)')
     parser.add_argument('--projects-dir', type=str, metavar='PATH', default=DEFAULT_PROJECTS_DIR,
                         help=f'Directory to store projects (default: {DEFAULT_PROJECTS_DIR})')
+
+    parser.add_argument('--num-ideas', type=int, metavar='NUMBER', help='Number of ideas to genenrate according to subject (required subject)')
+    parser.add_argument('--subject-name', type=str, metavar='TEXT', help='subject name - new json file name')
+
     args = parser.parse_args()
     logger.info(f"Parsed arguments: {vars(args)}")
     project_name = args.project
@@ -450,6 +494,10 @@ async def main(execute_command_func):
     try:
         if args.list:
             handle_list_command(projects_dir)
+        elif args.subject:
+            handle_idea_list_gen_command(idea_subject_text=args.subject, subject_name=args.subject_name, num_ideas=args.num_ideas, project_name="unknown", projects_dir=projects_dir)
+        elif args.bulk:
+            handle_idea_list_bulk_command(bulk_file=args.bulk, project_name="unknown", projects_dir=projects_dir)
         elif args.idea:
             handle_idea_command(idea_text=args.idea, project_name=project_name, projects_dir=projects_dir)
         elif args.business:
