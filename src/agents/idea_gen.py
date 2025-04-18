@@ -59,9 +59,12 @@ class IdeaGenAgent(BaseAgent):
         """Creates the prompt for the generative AI model to generate structured startup ideas."""
         prompt = f"""
         Generate a diverse list of {num_ideas} innovative startup ideas that leverage AI, machine learning,
-        or other advanced technologies to solve problems or create new opportunities in the field of:
+        or other advanced technologies to solve problems or **CREATE NEW OPPORTUNITIES** in the field of:
 
         **{idea_subject_text}**
+
+        **DONT** generate a projects concept based on current market trends or existing products.
+        **BE INNOVATIVE** **FUTURISTIC** **THINK OUTSIDE THE BOX** **BE ORIGINAL** **BE UNIQUE**
 
         Each idea must be:
         - Feasible for a solo founder or a small team.

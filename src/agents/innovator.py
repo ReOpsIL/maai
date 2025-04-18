@@ -17,7 +17,7 @@ class InnovatorAgent(BaseAgent):
             modification_text: Instructions on how to modify the existing idea.
         """
         self.logger.info(f"Running Innovator Agent for project: {self.project_name})")
-       
+
         if not idea_text:
             raise ValueError("Initial idea text is required")
         self.logger.info(f"Received initial idea: '{idea_text[:100]}...'")
@@ -44,7 +44,7 @@ class InnovatorAgent(BaseAgent):
             raise RuntimeError(f"Failed to generate concept using AI: {e}")
 
         # Determine content to write
-        
+
         # Create mode - add prefix
         content_prefix = f"# Project Idea: {self.project_name}\n\n## Initial Concept\n\n"
         final_content_to_write = content_prefix + generated_output
@@ -59,10 +59,22 @@ class InnovatorAgent(BaseAgent):
 
         return idea_md_path
 
+    def _improve_idea_prompt(self, idea_path):
+        prompt = f"""Please review the project proposal and the associated business plan,
+        including the current scoring. I would like you to enhance the idea to make the business
+        opportunity more compelling. As you do so, recalculate the score after each iteration while
+        critically evaluating the proposal.
+        Repeat this process multiple times to maximize the final score.
+        Important: Do not alter the scoring method or formula.
+        """
+        return ""
+
     def _create_prompt(self, idea_text: str) -> str: # For initial creation
         """Creates the prompt for the generative AI model."""
         prompt = f"""
-            Expand the following user idea into a detailed project concept document in Markdown format.
+            Expand the following user idea into a detailed **INNOVATIVE** **FUTURISTIC** **WILD** **IMAGINATIVE** project concept document in Markdown format.
+            **DONT** generate a project concept based on current market trends or existing products.
+            **BE INNOVATIVE** **THINK OUTSIDE THE BOX** **BE ORIGINAL** **BE UNIQUE**
 
             **User Idea:** "{idea_text}"
 
@@ -98,6 +110,3 @@ class InnovatorAgent(BaseAgent):
             Do not include any introductory or concluding text outside of the Markdown structure.
         """
         return prompt
-
-
-  
