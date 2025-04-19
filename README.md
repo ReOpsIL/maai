@@ -1,4 +1,5 @@
 # MAAI: Multi-Agent Coding CLI Application
+![MAAI](maai.png)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) <!-- Optional: Add a license badge if applicable -->
 
