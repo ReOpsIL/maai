@@ -8,7 +8,7 @@ This document details the implementation strategy for the Multi-Agent Coding CLI
 
 The application will follow a modular, agent-based architecture orchestrated by a central CLI controller.
 
-*   **Orchestrator:** The main entry point (`src/orchestrator.py`), responsible for parsing CLI commands, managing project lifecycles, and invoking the appropriate agent sequence.
+*   **Orchestrator:** The main entry point (`src/main.py`), responsible for parsing CLI commands, managing project lifecycles, and invoking the appropriate agent sequence.
 *   **Agents:** Independent modules (`src/agents/`) each performing a specific task in the development pipeline. They will communicate primarily through files within the designated project directory.
 *   **Project Structure:** All generated artifacts for a specific idea will reside within `projects/<project_name>/`, ensuring isolation and organization. The application's own code will live under `src/`.
 
@@ -97,10 +97,10 @@ graph TD
 *   **File Operations:** `os`, `shutil`
 *   **Environment Variables:** `python-dotenv` (to load `GEMINI_API_KEY`)
 
-## 4. Orchestrator (`src/orchestrator.py`)
+## 4. Orchestrator (`src/main.py`)
 
-*   **Initialization:** Load environment variables (e.g., `GEMINI_API_KEY`).
-*   **Argument Parsing:** Define arguments for `list`, `idea`, `update-idea`, `research`, `analyze-idea`, `build`, `code`, `review`, `reset`, `scratch`, `update`, `generate-doc`, etc., using `argparse`. Include the `--fix` flag for use with `--code`.
+*   **Initialization:** Load environment variables (e.g., `GEMINI_API_KEY`) and configure logging.
+*   **Argument Parsing:** Define arguments for `list`, `idea`, `update-idea`, `research`, `analyze-idea`, `build`, `code`, `review`, `reset`, `scratch`, `update`, `generate-doc`, etc., using `argparse`. Include the `--fix` flag for use with `--code`, and integrate enhanced error handling and logging as per the updated implementation.
     *   `idea`: Takes `<text>` and optional `--project <name>`.
     *   `update-idea`: Takes `<text>` and requires `--project <name>`.
     *   `research`, `analyze-idea`, `build`, `code`, `review`, `reset`, `scratch`, `update`, `generate-doc`: Require `--project <name>`.
@@ -178,7 +178,7 @@ class BaseAgent(ABC):
 
 ### 5.4. Architect Agent (`src/agents/architect.py`)
 
-*   **Input:** Path to `idea.md`, or modification text (from user or `review.md`) + context from existing `impl_*.md`/`integ.md`.
+*   **Input:** Path to `idea.md`, or modification text (from user or `review.md`) + context from existing `impl_*.md`/`integ.md`. It uses a new method to create update prompts for regenerating plans.
 *   **Process:**
     *   Read `idea.md` and/or existing plans/modification text.
     *   Analyze requirements/feedback using LLM.
@@ -193,7 +193,7 @@ class BaseAgent(ABC):
 
 ### 5.5. Coder Agent (`src/agents/coder.py`)
 
-*   **Input:** Paths to `impl_*.md`, `integ.md`. Optional feedback from `docs/review.md` (if `--fix` is used).
+*   **Input:** Paths to `impl_*.md`, `integ.md`. Optional feedback from `docs/review.md` (if `--fix` is used). It now includes methods for generating and parsing project structures (`_generate_structure_list`, `_parse_structure_text`, `_create_project_scaffolding`).
 *   **Process:**
     *   Read implementation plans.
     *   Parse details (potentially using LLM).
@@ -260,7 +260,7 @@ maai/
 │   │   ├── market_analyst.py
 │   │   └── research_agent.py
 │   ├── __init__.py
-│   ├── orchestrator.py
+│   ├── main.py
 │   └── utils.py          # Helper functions (e.g., slugify, file ops)
 ├── tests/                # Tests for the MAAI application itself
 │   └── ...
@@ -271,7 +271,7 @@ maai/
 
 ## 7. Error Handling and Logging
 
-*   Use Python's `logging` module configured in `orchestrator.py`. Log agent activities, errors, and key decisions.
+*   Use Python's `logging` module configured in `main.py`. Log agent activities, errors, and key decisions.
 *   Implement specific exception handling for API errors (`google.api_core.exceptions`), file I/O errors, `subprocess` errors, and invalid user input.
 *   Provide clear feedback to the user upon errors.
 
