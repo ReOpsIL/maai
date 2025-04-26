@@ -6,7 +6,7 @@ class IdeaGenAgent(BaseAgent):
     Pros and Cons a simple user idea in business perspective.
     """
 
-    def run(self, idea_subject_text: str, subject_name: str, num_ideas: int):
+    def run(self, idea_subject_text: str, subject_name: str, num_ideas: int, wild_mode: bool):
         """
         Executes the IdeaGenAgent  task: creating the subject_name.json file.
 
@@ -28,7 +28,7 @@ class IdeaGenAgent(BaseAgent):
         ideas_list_path = os.path.join(self.docs_path, f"{subject_name}.json")
 
         # Create mode
-        prompt = self._create_prompt(idea_subject_text, num_ideas)
+        prompt = self._create_prompt(idea_subject_text, num_ideas, wild_mode)
         self.logger.debug(f"Generated create prompt for:\n{prompt[:500]}...")
 
         try:
@@ -55,16 +55,22 @@ class IdeaGenAgent(BaseAgent):
 
         return ideas_list_path
 
-    def _create_prompt(self, idea_subject_text: str, num_ideas: int) -> str:
+    def _create_prompt(self, idea_subject_text: str, num_ideas: int, wild_mode: bool) -> str:
         """Creates the prompt for the generative AI model to generate structured startup ideas."""
+        w1 = ""
+        w2 = ""
+
+        if wild_mode:
+            w1 = """**INNOVATIVE** **FUTURISTIC** **WILD** **IMAGINATIVE**"""
+            w2 = """**DONT** generate a projects concept based on current market trends or existing products. **BE INNOVATIVE** **FUTURISTIC** **THINK OUTSIDE THE BOX** **BE ORIGINAL** **BE UNIQUE**"""
+            
         prompt = f"""
-        Generate a diverse list of {num_ideas} innovative startup ideas that leverage AI, machine learning,
+        Generate a diverse {w1} list of **{num_ideas}** startup ideas that leverage AI, machine learning,
         or other advanced technologies to solve problems or **CREATE NEW OPPORTUNITIES** in the field of:
 
         **{idea_subject_text}**
 
-        **DONT** generate a projects concept based on current market trends or existing products.
-        **BE INNOVATIVE** **FUTURISTIC** **THINK OUTSIDE THE BOX** **BE ORIGINAL** **BE UNIQUE**
+        {w2}
 
         Each idea must be:
         - Feasible for a solo founder or a small team.

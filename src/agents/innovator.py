@@ -8,7 +8,7 @@ class InnovatorAgent(BaseAgent):
     Expands a simple user idea into a more detailed concept using a Generative AI model.
     """
 
-    def run(self, idea_text: str):
+    def run(self, idea_text: str, wild_mode: bool):
         """
         Executes the Innovator agent's task: creating the idea.md file.
 
@@ -31,7 +31,7 @@ class InnovatorAgent(BaseAgent):
         idea_md_path = os.path.join(self.docs_path, "idea.md")
 
         # Create mode
-        prompt = self._create_prompt(idea_text)
+        prompt = self._create_prompt(idea_text, wild_mode=wild_mode)
         self.logger.debug(f"Generated create prompt for Gemini:\n{prompt[:500]}...")
 
         try:
@@ -69,12 +69,18 @@ class InnovatorAgent(BaseAgent):
         """
         return ""
 
-    def _create_prompt(self, idea_text: str) -> str: # For initial creation
+    def _create_prompt(self, idea_text: str, wild_mode: bool) -> str: # For initial creation
         """Creates the prompt for the generative AI model."""
+        w1 = ""
+        w2 = ""
+        if wild_mode:
+            w1 = """**INNOVATIVE** **FUTURISTIC** **WILD** **IMAGINATIVE**"""
+            w2 = """**DONT** generate a project concept based on current market trends or existing products. **BE INNOVATIVE** **THINK OUTSIDE THE BOX** **BE ORIGINAL** **BE UNIQUE**"""
+
         prompt = f"""
-            Expand the following user idea into a detailed **INNOVATIVE** **FUTURISTIC** **WILD** **IMAGINATIVE** project concept document in Markdown format.
-            **DONT** generate a project concept based on current market trends or existing products.
-            **BE INNOVATIVE** **THINK OUTSIDE THE BOX** **BE ORIGINAL** **BE UNIQUE**
+            Expand the following user idea into a detailed {w1} project concept document in Markdown format.
+            
+            {w2}
 
             **User Idea:** "{idea_text}"
 

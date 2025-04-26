@@ -5,3 +5,4 @@ PyYAML
 flake8
 pylint
 openai
+textual

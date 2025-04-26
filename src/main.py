@@ -85,14 +85,14 @@ def list_projects(projects_dir: str):
 def handle_list_command(projects_dir: str):
     list_projects(projects_dir)
 
-def handle_idea_list_gen_command(idea_subject_text: str, subject_name:str, num_ideas: int, project_name: str | None, projects_dir: str):
+def handle_idea_list_gen_command(idea_subject_text: str, subject_name:str, num_ideas: int, project_name: str | None, projects_dir: str, wild_mode: bool):
     logger.info(f"Handling '--idea' action: Subject='{idea_subject_text[:50]} - Number of ideas to generate: {num_ideas}...', Project='{project_name}'")
     print(f"{AGENT_COLOR}Initializing IdeaGenAgent...{RESET_ALL}")
     project_path = get_project_path(project_name, projects_dir)
 
     idea_list_gen = IdeaGenAgent(project_name=project_name, project_path=project_path)
     try:
-        idea_list_json_path = idea_list_gen.run(idea_subject_text=idea_subject_text, subject_name=subject_name, num_ideas=num_ideas)
+        idea_list_json_path = idea_list_gen.run(idea_subject_text=idea_subject_text, subject_name=subject_name, num_ideas=num_ideas, wild_mode=wild_mode)
         print(f"{SUCCESS_COLOR}Successfully processed idea subject for project '{project_name}'. Concept saved to: {idea_list_json_path}")
     except Exception as e: logger.error(f"IdeaGenAgent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error processing idea: {e}")
 
@@ -100,7 +100,7 @@ def clean_text(text):
     # Replace any character that is not a-z, A-Z, or 0-9 with an underscore
     return re.sub(r'[^a-zA-Z0-9]', '_', text)
 
-def handle_idea_list_bulk_command(bulk_file: str, project_name: str | None, projects_dir: str):
+def handle_idea_list_bulk_command(bulk_file: str, project_name: str | None, projects_dir: str, wild_mode: bool):
     with open(bulk_file, 'r') as f:
         data = json.load(f)
 
@@ -116,11 +116,11 @@ def handle_idea_list_bulk_command(bulk_file: str, project_name: str | None, proj
         new_projects_dir = os.path.join(projects_dir, clean_text(idea['category']))
 
         os.makedirs(new_projects_dir, exist_ok=True)
-        handle_idea_command(idea['description'], project_name=new_project_name, projects_dir=new_projects_dir)
+        handle_idea_command(idea['description'], project_name=new_project_name, projects_dir=new_projects_dir, wild_mode=wild_mode)
         handle_business_command(project_name=new_project_name, projects_dir=new_projects_dir)
         handle_scoring_command(project_name=new_project_name, projects_dir=new_projects_dir)
 
-def handle_idea_command(idea_text: str, project_name: str | None, projects_dir: str):
+def handle_idea_command(idea_text: str, project_name: str | None, projects_dir: str, wild_mode: bool):
     logger.info(f"Handling '--idea' action: Text='{idea_text[:50]}...', Project='{project_name}'")
     if not project_name:
         project_name = slugify(idea_text)
@@ -132,7 +132,7 @@ def handle_idea_command(idea_text: str, project_name: str | None, projects_dir: 
     print(f"{AGENT_COLOR}Initializing Innovator Agent...{RESET_ALL}")
     innovator = InnovatorAgent(project_name=project_name, project_path=project_path)
     try:
-        idea_md_path = innovator.run(idea_text=idea_text)
+        idea_md_path = innovator.run(idea_text=idea_text, wild_mode=wild_mode)
         print(f"{SUCCESS_COLOR}Successfully processed idea for project '{project_name}'. Concept saved to: {idea_md_path}")
     except Exception as e: logger.error(f"Innovator Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error processing idea: {e}")
 
@@ -472,6 +472,7 @@ async def main(execute_command_func):
     parser.add_argument('--projects-dir', type=str, metavar='PATH', default=DEFAULT_PROJECTS_DIR,
                         help=f'Directory to store projects (default: {DEFAULT_PROJECTS_DIR})')
 
+    parser.add_argument('--wild', action='store_true', default=False, help='Use wild mode - innovatiove and futuristic enhanced prompt')
     parser.add_argument('--num-ideas', type=int, metavar='NUMBER', help='Number of ideas to genenrate according to subject (required subject)')
     parser.add_argument('--subject-name', type=str, metavar='TEXT', help='subject name - new json file name')
 
@@ -495,11 +496,13 @@ async def main(execute_command_func):
         if args.list:
             handle_list_command(projects_dir)
         elif args.subject:
-            handle_idea_list_gen_command(idea_subject_text=args.subject, subject_name=args.subject_name, num_ideas=args.num_ideas, project_name="unknown", projects_dir=projects_dir)
+            handle_idea_list_gen_command(idea_subject_text=args.subject, subject_name=args.subject_name, 
+                                        num_ideas=args.num_ideas, project_name="unknown",
+                                        projects_dir=projects_dir, wild_mode=args.wild)
         elif args.bulk:
-            handle_idea_list_bulk_command(bulk_file=args.bulk, project_name="unknown", projects_dir=projects_dir)
+            handle_idea_list_bulk_command(bulk_file=args.bulk, project_name="unknown", projects_dir=projects_dir, wild_mode=args.wild)
         elif args.idea:
-            handle_idea_command(idea_text=args.idea, project_name=project_name, projects_dir=projects_dir)
+            handle_idea_command(idea_text=args.idea, project_name=project_name, projects_dir=projects_dir, wild_mode=args.wild)
         elif args.business:
             handle_business_command(project_name=project_name, projects_dir=projects_dir)
         elif args.scoring:
