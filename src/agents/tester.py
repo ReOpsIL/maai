@@ -151,7 +151,7 @@ class TesterAgent(BaseAgent):
 
         # Create mode
         prompt = self._create_test_prompt(impl_content, source_code)
-        self.logger.debug(f"Generated create prompt for Gemini (Tester):\n{prompt[:500]}...")
+        self.logger.debug(f"Generated create prompt for LLM (Tester):\n{prompt[:500]}...")
         try:
             self.logger.info("Sending request to LLM API for test generation...")
             # May need higher token limits for tests + source code context

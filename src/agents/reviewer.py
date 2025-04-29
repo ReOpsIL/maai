@@ -119,7 +119,7 @@ class ReviewerAgent(BaseAgent):
             raise RuntimeError("ReviewerAgent requires a configured Generative Model.")
 
         prompt = self._create_review_prompt(impl_content, source_code)
-        self.logger.debug(f"Generated review prompt for Gemini:\n{prompt[:500]}...")
+        self.logger.debug(f"Generated review prompt for LLM:\n{prompt[:500]}...")
 
         try:
             self.logger.info("Sending request to LLM API for code review...")

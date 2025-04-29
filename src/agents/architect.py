@@ -2,6 +2,8 @@ import os
 import re # Added for parsing
 
 from .base_agent import BaseAgent
+from .coder import CoderAgent
+
 
 class ArchitectAgent(BaseAgent):
     """
@@ -16,7 +18,7 @@ class ArchitectAgent(BaseAgent):
         implementation plans (impl_*.md) and an integration plan (integ.md).
 
         Returns:
-            A list of paths to the generated  markdown files.
+            A list of paths to the generated markdown files.
 
         Raises:
             FileNotFoundError: If idea.md cannot be read.
@@ -60,11 +62,111 @@ class ArchitectAgent(BaseAgent):
             raise RuntimeError(f"An unexpected error occurred in Architect Agent during writing: {e}")
 
         return generated_files
+    
+    def run_features_impl(self):
+        # Model initialization is now handled by BaseAgent
+        if not self.model:
+            self.logger.error("Generative model not initialized in BaseAgent. Cannot proceed.")
+            raise RuntimeError("ArchitectAgent requires a configured Generative Model.")
 
+        coder = CoderAgent(project_name=self.project_name, project_path=self.project_path)
+    
+        feature_content = coder.get_feature_content()
+        prompt = self._create_feature_impl_prompt(feature_content)
+        
+        # Create mode 
+        self.logger.debug(f"Generated create prompt for LLM (Architect):\n{prompt[:500]}...")
+        try:
+            self.logger.info("Sending request to LLM API for feature impl prompt...")
+            feature_impl_prompt = self.model.generate_content(prompt)           
+            self.logger.debug(f"Generated feature impl prompt (first 500 chars):\n{feature_impl_prompt[:500]}...")
+        except Exception as e:
+            self.logger.error(f"An unexpected error occurred during LLM API call (Architect): {e}", exc_info=True)
+            raise RuntimeError(f"Failed to generate architecture plan using AI: {e}")
+        
+        try:
+            # Parse the combined output and write individual files
+            generated_files = self._parse_and_write_feature_plans(feature_impl_prompt)
+            self.logger.info(f"Successfully created implementation files: {generated_files}")
+        except ValueError as e:
+            self.logger.error(f"Failed to parse AI response: {e}", exc_info=True)
+            raise RuntimeError(f"Architect Agent failed during parsing: {e}")
+        except IOError as e:
+            # Error logged by _write_file
+            raise IOError(f"Failed to write implementation files for project {self.project_name}: {e}")
+        except Exception as e:
+            self.logger.error(f"An unexpected error occurred during plan writing: {e}", exc_info=True)
+            raise RuntimeError(f"An unexpected error occurred in Architect Agent during writing: {e}")
+
+        return generated_files
+    
+
+    def run_enhance(self, features=False):
+        generated_files = []
+        # Model initialization is now handled by BaseAgent
+        if not self.model:
+            self.logger.error("Generative model not initialized in BaseAgent. Cannot proceed.")
+            raise RuntimeError("ArchitectAgent requires a configured Generative Model.")
+
+        coder = CoderAgent(project_name=self.project_name, project_path=self.project_path)
+    
+        
+        if features:
+            idea_content = coder.get_idea_content()
+            prompt = self._create_features_prompt(idea_content)
+        else:
+            impl_content, plan_files = coder.get_impl_content()
+            prompt = self._create_enhanced_prompt(impl_content, plan_files)
+        
+        file_name = f"request_enhanced_prompt.txt"
+        file_path = os.path.join(self.docs_path, file_name)
+        self.logger.info(f"Writing request enhanced prompt to: {file_path}")
+        self._write_file(file_path, prompt)
+    
+        # Create mode 
+        self.logger.debug(f"Generated create prompt for LLM (Architect):\n{prompt[:500]}...")
+        try:
+            self.logger.info("Sending request to LLM API for enhanced prompt...")
+            enhanced_prompt = self.model.generate_content(prompt)    
+            file_name = f"enhanced_prompt.txt"
+            file_path = os.path.join(self.docs_path, file_name)
+            self.logger.info(f"Writing enhanced prompt to: {file_path}")
+            self._write_file(file_path, enhanced_prompt)
+            self.logger.debug(f"Generated enhanced prompt (first 500 chars):\n{enhanced_prompt[:500]}...")
+            enhanced_content = self.model.generate_content(enhanced_prompt)
+            file_name = f"enhanced_content.txt"
+            file_path = os.path.join(self.docs_path, file_name)
+            self.logger.info(f"Writing enhanced content to: {file_path}")
+            self._write_file(file_path, enhanced_content)
+            self.logger.debug(f"Generated enhanced content (first 500 chars):\n{enhanced_prompt[:500]}...")
+        except Exception as e:
+            self.logger.error(f"An unexpected error occurred during LLM API call (Architect): {e}", exc_info=True)
+            raise RuntimeError(f"Failed to generate architecture plan using AI: {e}")
+        
+        try:
+            if features:
+                features_file_path = os.path.join(self.docs_path, "features.md")
+                self._write_file(features_file_path, enhanced_content)
+                self.logger.info(f"Successfully created features file: features.md")
+            else:
+                # Parse the combined output and write individual files
+                generated_files = self._parse_and_write_plans(enhanced_content)
+                self.logger.info(f"Successfully created implementation files: {generated_files}")
+        except ValueError as e:
+            self.logger.error(f"Failed to parse AI response: {e}", exc_info=True)
+            raise RuntimeError(f"Architect Agent failed during parsing: {e}")
+        except IOError as e:
+            # Error logged by _write_file
+            raise IOError(f"Failed to write implementation files for project {self.project_name}: {e}")
+        except Exception as e:
+            self.logger.error(f"An unexpected error occurred during plan writing: {e}", exc_info=True)
+            raise RuntimeError(f"An unexpected error occurred in Architect Agent during writing: {e}")
+
+        return generated_files
+    
     def _generate(self, idea_content: str) -> str:
         """
         Uses Generative AI to create the implementation plan string.
-        In update mode, it reads the old impl_*.md for context if it exists.
         """
         # Model initialization is now handled by BaseAgent
         if not self.model:
@@ -75,7 +177,7 @@ class ArchitectAgent(BaseAgent):
          
         # Create mode 
         prompt = self._create_prompt(idea_content)
-        self.logger.debug(f"Generated create prompt for Gemini (Architect):\n{prompt[:500]}...")
+        self.logger.debug(f"Generated create prompt for LLM (Architect):\n{prompt[:500]}...")
         try:
             self.logger.info("Sending request to LLM API for architecture plan...")
             generated_plan = self.model.generate_content(prompt)
@@ -85,6 +187,85 @@ class ArchitectAgent(BaseAgent):
         except Exception as e:
             self.logger.error(f"An unexpected error occurred during LLM API call (Architect): {e}", exc_info=True)
             raise RuntimeError(f"Failed to generate architecture plan using AI: {e}")
+
+    def _create_feature_impl_prompt(self, feature_content: str) -> str: # For initial creation
+            """Creates the prompt for the generative AI model to design the architecture of each feature."""
+            prompt = f"""
+    Analyze the following project features description list (provided in Markdown) and generate a set of detailed implementation plans, for each feature and for each optional feature, and a separate integration plan for each feature. These plans must be highly detailed to guide a Coder Agent.
+
+    **Project features (from features.md):**
+    ```markdown
+    {feature_content}
+    ```
+
+    **Instructions:**
+
+    1.  **Identify Major Components:** Based on the concept and feature description, identify the distinct major componentss for implementaing **each feature** (e.g., backend, frontend, database, deployment, external_service_integration, etc.). Use simple, lowercase names for components (e.g., `backend`, `frontend`) **with feature name as prefix**.
+    2.  **Generate Component Implementation Plans:** For **EACH** major feature component identified of **EACH** feature, generate a **detailed implementation plan** in Markdown format. **Each plan should cover the following items**:
+        *   **Technology Stack:** Specific technologies, libraries, frameworks, and versions for this component **(related to feature**)**.
+        *   **Project Structure:** Detailed directory and file structure within the feature component's sub-directory (e.g., `[feature_name]/backend/src/...`, `[feature_name]/frontend/src/...`). List key files and their purpose.
+        *   **Core Modules/Classes/Functions:** Define the main code structures. Specify purpose, key methods/functions (with parameters, return types, type hints), and important attributes/data. *Be very specific*.
+        *   **Data Structures:** Detail significant data structures internal to this component or passed immediately to/from it.
+        *   **API Definitions (if applicable):** If this feature component provides or consumes an API, define the endpoints, request/response formats, and authentication details relevant *to this feature component*.
+        *   **Error Handling:** Specific error handling strategies within this feature component.
+        *   **Testing Strategy:** Specific unit and integration tests for this feature component. Suggest relevant libraries (`pytest`, `jest`, etc.).
+        *   **Setup/Run Instructions:** Basic steps to set up and run this feature component independently, if possible.
+    3.  **Generate Integration Plan:** Create a separate integration plan (`integ.md`) in Markdown format that describes:
+        *   **Overall Architecture Diagram/Description:** A high-level overview of how all feature components fit together. Use a textual description or simple diagram (like ASCII art, avoid Mermaid).
+        *   **Communication Flow:** Describe the sequence of interactions between feature components for key use cases. Detail the protocols (e.g., REST API calls, message queues, database queries), data formats, and authentication methods used *between* components.
+        *   **Shared Data Structures:** Define data structures used for communication *between* feature components.
+        *   **Cross-Cutting Concerns:** Address aspects like authentication, logging, and configuration management across festure components.
+        *   **Deployment Overview:** Briefly outline how the festure components will be deployed together (e.g., Docker Compose, Kubernetes).
+    4.  **Format Output:** Structure the entire output clearly using the following delimiters. **Crucially, place each feature component's plan and the integration plan between these delimiters.**
+
+        ```
+        <<<FEATURE: [feature_name_1]>>>
+            ## All components fore feature [feature_name_1]
+
+            <<<COMPONENT: [component_name_1]>>>
+            # Implementation Plan: [Component Name 1]
+            (Detailed Markdown plan for component 1...)
+
+            <<<COMPONENT: [component_name_2]>>>
+            # Implementation Plan: [Component Name 2]
+            (Detailed Markdown plan for component 2...)
+
+            <<<COMPONENT: [component_name_n]>>>
+            # Implementation Plan: [Component Name N]
+            (Detailed Markdown plan for component n...)
+
+            <<<INTEGRATION>>>
+            # Integration Plan
+            (Detailed Markdown plan for integration...)
+
+        <<<FEATURE: [feature_name_2]>>>
+            ## All components fore feature [feature_name_2]
+
+            <<<COMPONENT: [component_name_1]>>>
+            # Implementation Plan: [Component Name 1]
+            (Detailed Markdown plan for component 1...)
+
+            <<<COMPONENT: [component_name_2]>>>
+            # Implementation Plan: [Component Name 2]
+            (Detailed Markdown plan for component 2...)
+
+            <<<COMPONENT: [component_name_n]>>>
+            # Implementation Plan: [Component Name N]
+            (Detailed Markdown plan for component n...)
+
+            <<<INTEGRATION>>>
+            # Integration Plan
+            (Detailed Markdown plan for integration...)
+        ```
+
+        *   Replace `[feature_name_1]`, `[feature_name_2]`, etc., with the actual lowercase feature name
+        *   Replace `[component_name_1]`, `[component_name_2]`, etc., with the actual lowercase component names you identified theat belog to a feature (e.g., `backend`, `frontend`).
+        *   Ensure the content within each delimited section is valid Markdown.
+        *   Do not include any text before the first delimiter or after the last plan.
+
+    **Output the complete response containing all delimited sections.**
+    """
+            return prompt
 
 
     def _create_prompt(self, idea_content: str) -> str: # For initial creation
@@ -100,10 +281,10 @@ Analyze the following project concept (provided in Markdown) and generate a set 
 **Instructions:**
 
 1.  **Identify Major Components:** Based on the concept, identify the distinct major components of the system (e.g., backend, frontend, database, deployment, external_service_integration, etc.). Use simple, lowercase names for components (e.g., `backend`, `frontend`).
-2.  **Generate Component Implementation Plans:** For EACH major component identified, generate a detailed implementation plan in Markdown format. Each plan should cover:
+2.  **Generate Component Implementation Plans:** For **EACH** major component identified, generate a **detailed implementation plan** in Markdown format. **Each plan should cover the following items**:
     *   **Technology Stack:** Specific technologies, libraries, frameworks, and versions for this component.
     *   **Project Structure:** Detailed directory and file structure within the component's sub-directory (e.g., `backend/src/...`, `frontend/src/...`). List key files and their purpose.
-    *   **Core Modules/Classes/Functions:** Define the main code structures. Specify purpose, key methods/functions (with parameters, return types, type hints), and important attributes/data. Be very specific.
+    *   **Core Modules/Classes/Functions:** Define the main code structures. Specify purpose, key methods/functions (with parameters, return types, type hints), and important attributes/data. *Be very specific*.
     *   **Data Structures:** Detail significant data structures internal to this component or passed immediately to/from it.
     *   **API Definitions (if applicable):** If this component provides or consumes an API, define the endpoints, request/response formats, and authentication details relevant *to this component*.
     *   **Error Handling:** Specific error handling strategies within this component.
@@ -142,6 +323,184 @@ Analyze the following project concept (provided in Markdown) and generate a set 
 **Output the complete response containing all delimited sections.**
 """
         return prompt
+    
+    
+    def _create_features_prompt(self, idea_content):
+        return f"""**Act as a Prompt Engineering Specialist.**
+
+            **Your goal is to generate a comprehensive prompt.** This prompt will be used later to instruct another large language model to act as an expert system architect and senior developer.
+
+            The prompt you generate should tell the model to perform the following tasks based on provided input files:
+
+            1.  **Read and Understand:** Instruct the model to meticulously read and fully understand the project idea described in a file named `idea.md`.
+            2.  **Extend and Detail Key Features:** Instruct the model to significantly extend, refine, and add greater detail to *each* of the <## Key Features> in `idea.md` 
+            3.  **Extend and Detail Potential Enhancements / Future Ideas:** Instruct the model to significantly extend, refine, and add greater detail to *each* of the <## Potential Enhancements / Future Ideas> in `idea.md`     
+            4.  **Generate Output:** Instruct the model that its final output should be the complete, updated content of *each* of the <## Key Features>  and <## Potential Enhancements / Future Ideas> .
+            5.  **Target Outcome:** Emphasize that the objective of the generated prompt's task is to produce a robust, accurate, and detailed feaures descriptions that are sufficiently clear and complete to allow direct implementation of the described features.
+
+            Your output should be *only* the text of the prompt described above. Do not include any conversational text or explanations outside of the prompt itself.
+            
+            6.  **Format Output:** Structure the entire output clearly using the following delimiters. **Crucially, place each component's plan and the integration plan between these delimiters.**
+
+                ```
+                # Key features section:
+                <<<KEY_FEATURE: [feature_name_1]>>>
+                # Feature description: [Feature Name 1]
+                (Detailed Markdown plan for feature 1...)
+
+                <<<KEY_FEATURE: [feature_name_2]>>>
+                # Feature description: [Feature Name 2]
+                (Detailed Markdown plan for feature 2...)
+
+                <<<KEY_FEATURE: [feature_name_n]>>>
+                # Feature description: [Feature Name N]
+                (Detailed Markdown plan for feature n...)
+
+                # Optional feature section:
+                <<<KEY_FEATURE: [opt_feature_name_1]>>>
+                # Optional feature description: [Optional Feature Name 1]
+                (Detailed Markdown plan for optional feature 1...)
+
+                <<<KEY_FEATURE: [opt_feature_name_2]>>>
+                # Optional feature description: [Optional Feature Name 2]
+                (Detailed Markdown plan for optional feature 2...)
+
+                <<<KEY_FEATURE: [opt_feature_name_n]>>>
+                # Optional feature description: [Optional Feature Name N]
+                (Detailed Markdown plan for optional feature n...)
+
+                ```
+
+                *   Replace `[feature_name_1]`, `[feature_name_2]`, `[opt_feature_name_1]`, `[opt_feature_name_2]`, etc., with the actual lowercase names of the features (e.g., `calcium risk`, `preview axial` Etc').
+                *   Ensure the content within each delimited section is valid Markdown.
+                *   Do not include any text before the first delimiter or after the last plan.
+
+            **Output the complete response containing all delimited sections.**
+            
+            **idea file with list of features and optional features(`idea.md`):**
+            ```markdown
+
+            {idea_content}
+
+            ```
+            """
+    
+    def _create_enhanced_prompt(self, impl_content, plan_files):
+        plan_files_str = ",".join(plan_files)
+
+        return f"""**Act as a Prompt Engineering Specialist.**
+
+            **Your goal is to generate a comprehensive prompt.** This prompt will be used later to instruct another large language model to act as an expert system architect and senior developer.
+
+            The prompt you generate should tell the model to perform the following tasks based on provided input files:
+
+            1.  **Read and Understand:** Instruct the model to meticulously read and fully understand the project idea described in a file named `idea.md`.
+            2.  **Incorporate and Validate:** Instruct the model to read initial implementation plan files ({plan_files_str}) including integration file `integ.md`. The model should then verify that these initial plans align with the `idea.md` requirements and identify any inconsistencies or missing details.
+            3.  **Extend and Detail:** Instruct the model to significantly extend, refine, and add greater detail to *each* of the implementation plan files ({plan_files_str}) and the integration plan (`integ.md`) based on the comprehensive requirements in `idea.md` and best practices for software architecture and development. This detailing should cover API specifications (endpoints, schemas, auth), service logic, data structures/schemas (with types, constraints, relationships), deployment specifics (manifest examples, config management), external service API usage/error handling, and inter-component communication flows (potentially using diagrams or detailed step-by-step descriptions).
+            4.  **Generate Output:** Instruct the model that its final output should be the complete, updated content of *each* of the refined implementation and integration files ({plan_files_str}).
+            5.  **Target Outcome:** Emphasize that the objective of the generated prompt's task is to produce a robust, accurate, and detailed set of implementation blueprints that are sufficiently clear and complete to allow for direct implementation of the described application.
+
+            Your output should be *only* the text of the prompt described above. Do not include any conversational text or explanations outside of the prompt itself.
+            
+            6.  **Format Output:** Structure the entire output clearly using the following delimiters. **Crucially, place each component's plan and the integration plan between these delimiters.**
+
+                ```
+                <<<COMPONENT: [component_name_1]>>>
+                # Implementation Plan: [Component Name 1]
+                (Detailed Markdown plan for component 1...)
+
+                <<<COMPONENT: [component_name_2]>>>
+                # Implementation Plan: [Component Name 2]
+                (Detailed Markdown plan for component 2...)
+
+                <<<COMPONENT: [component_name_n]>>>
+                # Implementation Plan: [Component Name N]
+                (Detailed Markdown plan for component n...)
+
+                <<<INTEGRATION>>>
+                # Integration Plan
+                (Detailed Markdown plan for integration...)
+                ```
+
+                *   Replace `[component_name_1]`, `[component_name_2]`, etc., with the actual lowercase names you identified (e.g., `backend`, `frontend` Etc').
+                *   Ensure the content within each delimited section is valid Markdown.
+                *   Do not include any text before the first delimiter or after the last plan.
+
+            **Output the complete response containing all delimited sections.**
+            
+            **Integration plan (`integ.md`) and Implementation Plan (`impl_*.md`):**
+            ```markdown
+
+            {impl_content}
+
+            ```
+            """
+    
+    def _parse_and_write_feature_plans(self, combined_output: str) -> list[str]:
+        """
+        Parses the AI's combined output string based on delimiters and writes
+        individual feature component and integration markdown files.
+
+        Args:
+            combined_output: The raw string response from the AI model.
+        Returns:
+            A list of paths to the files written.
+
+        Raises:
+            ValueError: If parsing fails (e.g., delimiters not found).
+            IOError: If writing files fails.
+        """
+        # Updated regex to capture content until the next delimiter or end of string
+        feature_pattern = re.compile(r"<<<FEATURE:\s*(.*?)>>>\s*(.*?)(?=\s*<<<FEATURE|\Z)", re.DOTALL | re.IGNORECASE)
+        component_pattern = re.compile(r"<<<COMPONENT:\s*(.*?)>>>\s*(.*?)(?=\s*<<<|\Z)", re.DOTALL | re.IGNORECASE)
+        integration_pattern = re.compile(r"<<<INTEGRATION>>>(.*)", re.DOTALL | re.IGNORECASE)
+
+        features = feature_pattern.findall(combined_output)
+        for feature_name, feature in features:
+            components = component_pattern.findall(feature)
+            integration_match = integration_pattern.search(feature)
+
+            if not components and not integration_match:
+                raise ValueError("Could not find any <<<COMPONENT: ...>>> or <<<INTEGRATION>>> delimiters in the AI output.")
+
+            written_files = []
+
+            # Write component files
+            for name, content in components:
+                component_name = name.strip().lower().replace(" ", "_")
+                if not component_name:
+                    self.logger.warning("Found component block with empty name, skipping.")
+                    continue
+                os.makedirs(feature_name, exist_ok=True)
+                file_name = f"impl_{component_name}.md"
+                file_path = os.path.join(self.docs_path, feature_name, file_name)
+                self.logger.info(f"Writing component plan to: {file_path}")
+                plan_content = content.strip()
+                # Add a header if the AI didn't include one (optional, but good practice)
+                if not plan_content.startswith("#"):
+                    plan_content = f"# Implementation Plan: {component_name.capitalize()}\n\n{plan_content}"
+                self._write_file(file_path, plan_content) # Raises IOError on failure
+                written_files.append(file_path)
+
+            # Write integration file
+            if integration_match:
+                file_name = "integ.md"
+                file_path = os.path.join(self.docs_path, file_name)
+                self.logger.info(f"Writing integration plan to: {file_path}")
+                plan_content = integration_match.group(1).strip()
+                # Add a header if the AI didn't include one
+                if not plan_content.startswith("#"):
+                    plan_content = f"# Integration Plan\n\n{plan_content}"
+                self._write_file(file_path, plan_content) # Raises IOError on failure
+                written_files.append(file_path)
+            else:
+                self.logger.warning("No <<<INTEGRATION>>> section found in the AI output.")
+
+        if not written_files:
+             raise ValueError("Parsing completed, but no valid component or integration plans were extracted to write.")
+
+        return written_files
+
 
     def _parse_and_write_plans(self, combined_output: str) -> list[str]:
         """

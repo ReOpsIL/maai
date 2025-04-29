@@ -48,11 +48,14 @@ class OpenAIClient(AiClient):
 
 
     def generate_content(self, prompt: str) -> str:
-        """Helper method to interact with xAI Grok API."""
         if self.model is None:
             self.logger.error("Model not initialized. Cannot generate response.")
             return ""
 
+        print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+        print(prompt)
+        print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n")
+        
         try:
             messages=[
                 #{"role": "system", "content": "You are a highly intelligent AI assistant."},
@@ -75,6 +78,7 @@ class OpenAIClient(AiClient):
             if completion.choices is None:
                 raise Exception(str(completion.error))
 
+            print(completion.choices)
             return completion.choices[0].message.content
         except Exception as e:
             self.logger.error(f"Error generating response from model API: {e}")

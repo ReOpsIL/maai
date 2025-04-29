@@ -32,7 +32,7 @@ class InnovatorAgent(BaseAgent):
 
         # Create mode
         prompt = self._create_prompt(idea_text, wild_mode=wild_mode)
-        self.logger.debug(f"Generated create prompt for Gemini:\n{prompt[:500]}...")
+        self.logger.debug(f"Generated create prompt for LLM:\n{prompt[:500]}...")
 
         try:
             self.logger.info("Sending request to LLM API...")

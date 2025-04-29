@@ -25,8 +25,81 @@ class CoderAgent(BaseAgent):
     Python code based on the implementation specifications (impl_*.md).
     Handles initial creation.
     """
+    def get_idea_content(self):        
+        self.logger.info(f"Reading ideas from idea.md")
+        file_path = os.path.join(self.docs_path, "idea.md")
+        content = self._read_file(file_path)
+        if content is not None:
+            content = f"# --- Content from: idea.md ---\n\n{content}\n\n# --- End of: idea.md ---"
+        else:
+            self.logger.warning(f"Could not read content from idea file: idea.md")
+            raise Exception("FATAL error - Stopping!")
 
-    def run(self, feedback: str | None = None, impl_content: str | None = None):
+        if not content:
+            raise FileNotFoundError(f"Failed to read content from idea file: idea.md")
+
+        return content
+
+    def get_feature_content(self):
+        self.logger.info(f"Reading features from features.md")
+        file_path = os.path.join(self.docs_path, "features.md")
+        content = self._read_file(file_path)
+        if content is not None:
+            content = f"# --- Content from: features.md ---\n\n{content}\n\n# --- End of: features.md ---"
+        else:
+            self.logger.warning(f"Could not read content from features file: features.md")
+            raise Exception("FATAL error - Stopping!")
+
+        if not content:
+            raise FileNotFoundError(f"Failed to read content from features file: features.md")
+
+        return content
+
+    def get_impl_content(self):
+        self.logger.info(f"Searching for implementation plans (impl_*.md, integ.md) in: {self.docs_path}")
+        plan_files = []
+        all_files = []
+        try:
+            all_files = os.listdir(self.docs_path)
+            plan_files = [
+                f for f in all_files
+                if (f.startswith("impl_") and f.endswith(".md")) or f == "integ.md"
+            ]
+            # Prioritize integ.md if it exists
+            if "integ.md" in plan_files:
+                plan_files.remove("integ.md")
+                plan_files.insert(0, "integ.md") # Read integration first
+
+        except FileNotFoundError:
+                self.logger.error(f"Documentation directory not found: {self.docs_path}")
+                raise FileNotFoundError(f"Documentation directory not found: {self.docs_path}")
+        except Exception as e:
+                self.logger.error(f"Error listing files in {self.docs_path}: {e}", exc_info=True)
+                raise RuntimeError(f"Could not list files in documentation directory: {e}")
+
+        if not plan_files:
+            self.logger.error(f"No implementation plan files (impl_*.md, integ.md) found in {self.docs_path}.")
+            raise FileNotFoundError(f"No implementation plan files found for project {self.project_name} in {self.docs_path}. Ensure the Architect Agent ran successfully.")
+
+        combined_content = []
+        self.logger.info(f"Reading implementation plans from: {', '.join(plan_files)}")
+        for filename in plan_files:
+            file_path = os.path.join(self.docs_path, filename)
+            content = self._read_file(file_path)
+            if content is not None:
+                combined_content.append(f"# --- Content from: {filename} ---\n\n{content}\n\n# --- End of: {filename} ---")
+            else:
+                self.logger.warning(f"Could not read content from implementation file: {file_path}")
+                raise Exception("FATAL error - Stopping!")
+
+        if not combined_content:
+                raise FileNotFoundError(f"Failed to read content from any identified implementation plan files: {', '.join(plan_files)}")
+
+        impl_content = "\n\n".join(combined_content)
+        self.logger.info(f"Successfully combined content from {len(plan_files)} implementation plan file(s). Total length: {len(impl_content)} chars.")
+        return impl_content, plan_files
+
+    def run(self, feedback: str | None = None):
         """
         Executes the Coder agent's task: structuring the project and generating/updating source files.
 
@@ -37,52 +110,7 @@ class CoderAgent(BaseAgent):
         self.logger.info(f"Running Coder Agent for project: {self.project_name} )")
 
         # 1. Read Implementation Plan (Common to both modes)
-        if impl_content is None:
-            self.logger.info(f"Searching for implementation plans (impl_*.md, integ.md) in: {self.docs_path}")
-            plan_files = []
-            all_files = []
-            try:
-                all_files = os.listdir(self.docs_path)
-                plan_files = [
-                    f for f in all_files
-                    if (f.startswith("impl_") and f.endswith(".md")) or f == "integ.md"
-                ]
-                # Prioritize integ.md if it exists
-                if "integ.md" in plan_files:
-                    plan_files.remove("integ.md")
-                    plan_files.insert(0, "integ.md") # Read integration first
-
-            except FileNotFoundError:
-                 self.logger.error(f"Documentation directory not found: {self.docs_path}")
-                 raise FileNotFoundError(f"Documentation directory not found: {self.docs_path}")
-            except Exception as e:
-                 self.logger.error(f"Error listing files in {self.docs_path}: {e}", exc_info=True)
-                 raise RuntimeError(f"Could not list files in documentation directory: {e}")
-
-            if not plan_files:
-                self.logger.error(f"No implementation plan files (impl_*.md, integ.md) found in {self.docs_path}.")
-                raise FileNotFoundError(f"No implementation plan files found for project {self.project_name} in {self.docs_path}. Ensure the Architect Agent ran successfully.")
-
-            combined_content = []
-            self.logger.info(f"Reading implementation plans from: {', '.join(plan_files)}")
-            for filename in plan_files:
-                file_path = os.path.join(self.docs_path, filename)
-                content = self._read_file(file_path)
-                if content is not None:
-                    combined_content.append(f"# --- Content from: {filename} ---\n\n{content}\n\n# --- End of: {filename} ---")
-                else:
-                    self.logger.warning(f"Could not read content from implementation file: {file_path}")
-                    raise Exception("FATAL error - Stopping!")
-
-            if not combined_content:
-                 raise FileNotFoundError(f"Failed to read content from any identified implementation plan files: {', '.join(plan_files)}")
-
-            impl_content = "\n\n".join(combined_content)
-            self.logger.info(f"Successfully combined content from {len(plan_files)} implementation plan file(s). Total length: {len(impl_content)} chars.")
-
-        else:
-             self.logger.info("Using provided implementation plan content (skipping file read).")
-
+        impl_content, _ = self.get_impl_content()
 
         written_files = [] # Keep track of files actually written
 
@@ -143,7 +171,7 @@ class CoderAgent(BaseAgent):
             raise RuntimeError("Generative model not initialized.")
 
         prompt = self._create_structure_prompt(impl_content)
-        self.logger.debug(f"Generated structure prompt for Gemini:\n{prompt[:500]}...")
+        self.logger.debug(f"Generated structure prompt for LLM:\n{prompt[:500]}...")
 
         try:
             self.logger.info("Sending request to LLM API for project structure...")
@@ -162,9 +190,11 @@ class CoderAgent(BaseAgent):
         return f"""
 Based on the following implementation plan (impl_*.md), generate the complete directory structure and file list for the project.
 
-**Implementation Plan (from impl_*.md):**
+**Integration plan (`integ.md`) and Implementation Plan (`impl_*.md`):**
 ```markdown
+
 {impl_content}
+
 ```
 
 **Instructions for Output Format:**
@@ -385,7 +415,7 @@ my_project_root/
 
 
         prompt = self._create_code_generation_prompt(impl_content, feedback) # Renamed from _create_prompt
-        self.logger.debug(f"Generated create/feedback prompt for Gemini (Coder):\n{prompt[:500]}...")
+        self.logger.debug(f"Generated create/feedback prompt for LLM (Coder):\n{prompt[:500]}...")
         try:
             self.logger.info("Sending request to LLM API for code content generation ...")
             # Consider increasing max output tokens if needed
@@ -431,7 +461,7 @@ Generate the complete, runnable code content for ALL necessary files for the pro
 **Instructions:**
 
 1.  **Generate the full content for ALL required files.** This includes Python source files (`.py`), configuration files (`requirements.txt`, `.gitignore`, `Dockerfile`, etc.), `README.md`, and any other files specified or implied by the implementation plan.
-2.  **Use Python 3.9+ syntax, including type hints** as specified in the plan for `.py` files.
+2.  **Use Python 3.11+ syntax, including type hints** as specified in the plan for `.py` files.
 3.  **Implement all core logic, classes, functions, etc.** defined in the plan. Include basic error handling where appropriate (e.g., file I/O, network requests).
 4.  **Add necessary import statements** at the beginning of each Python file.
 5.  **Include basic docstrings** for Python classes and functions.

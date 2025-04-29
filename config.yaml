@@ -3,7 +3,7 @@
 
 llm:
   # The model name to use for all agents (e.g., 'gemini-2.5-pro-exp-03-25/gemini-2.5-pro-preview-03-25')
-  model: "google/gemini-2.0-flash-exp:free" #"meta-llama/llama-4-maverick:free" # 'deepseek/deepseek-v3-base:free' #'grok-3-mini-beta' # 'google/gemini-2.5-pro-exp-03-25:free'
+  model: "google/gemini-2.5-flash-preview" #"google/gemini-2.0-flash-exp:free" #"meta-llama/llama-4-maverick:free" # 'deepseek/deepseek-v3-base:free' #'grok-3-mini-beta' # 'google/gemini-2.5-pro-exp-03-25'
   provider: "openrouter" # 'grok' 'groq' 'gemini' 'openai'
   reasoning_effort: "none"
   temperature: 0.7

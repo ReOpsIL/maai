@@ -35,7 +35,7 @@ class ResearchAgent(BaseAgent):
         self.logger.info("Attempting to perform research and generate summary using AI.")
         try:
             prompt = self._create_research_prompt(idea_content)
-            self.logger.debug(f"Generated research prompt for Gemini:\n{prompt[:500]}...")
+            self.logger.debug(f"Generated research prompt for LLM:\n{prompt[:500]}...")
             research_summary = self.model.generate_content(prompt)
             self.logger.info("Received research summary response from LLM API.")
             self.logger.debug(f"Generated Research Summary (first 200 chars):\n{research_summary[:200]}...")

@@ -200,6 +200,36 @@ def handle_research_command(project_name: str, projects_dir: str):
     except Exception as e: logger.error(f"Research Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error performing research: {e}")
 
 
+async def handle_build_features_command(project_name: str, projects_dir: str, execute_command_func):
+    """Handles the --build-features command: Runs the Architect Agent to generate architecture docs for features."""
+    logger.info(f"Handling '--build-features' action (Architect only) for project: {project_name}")
+    project_path = get_project_path(project_name, projects_dir)
+    if not os.path.exists(project_path) or not os.path.isdir(project_path):
+        logger.error(f"Project '{project_name}' not found.")
+        print(f"{ERROR_COLOR}Error: Project '{project_name}' does not exist.")
+        return
+    features_md_path = os.path.join(project_path, "docs", "features.md")
+    if not os.path.exists(features_md_path):
+        logger.error(f"Cannot build architecture: 'docs/features.md' not found.")
+        print(f"{ERROR_COLOR}Error: 'docs/features.md' not found. Please generate the idea first.")
+        return
+
+    print(f"{STEP_COLOR}Running Architect Agent to generate architecture plan...{RESET_ALL}")
+    architect = ArchitectAgent(project_name=project_name, project_path=project_path)
+    try:
+        feature_impl_paths = architect.run_features_impl()
+        if not feature_impl_paths: # Check if the list is empty
+             raise FileNotFoundError("Architect agent did not produce any implementation files.")
+        print(f"{SUCCESS_COLOR}Architecture plan generated: {', '.join(feature_impl_paths)}{RESET_ALL}")
+    except Exception as e:
+        logger.error(f"Architect Agent failed during --build: {e}", exc_info=True)
+        print(f"{ERROR_COLOR}Architecture generation failed: {e}")
+        return
+
+    logger.info(f"Architecture generation (--build) completed for project '{project_name}'.")
+    print(f"\n{SUCCESS_COLOR}Architecture generation finished successfully for project '{project_name}'.{RESET_ALL}")
+
+
 async def handle_build_command(project_name: str, projects_dir: str, execute_command_func):
     """Handles the --build command: Runs the Architect Agent to generate architecture docs."""
     logger.info(f"Handling '--build' action (Architect only) for project: {project_name}")
@@ -214,10 +244,10 @@ async def handle_build_command(project_name: str, projects_dir: str, execute_com
         print(f"{ERROR_COLOR}Error: 'docs/idea.md' not found. Please generate the idea first.")
         return
 
-    print(f"{STEP_COLOR}Running Architect Agent to generate/update architecture plan...{RESET_ALL}")
+    print(f"{STEP_COLOR}Running Architect Agent to generate architecture plan...{RESET_ALL}")
     architect = ArchitectAgent(project_name=project_name, project_path=project_path)
     try:
-        # Assuming architect.run() generates or updates impl_*.md and potentially other docs
+        # Assuming architect.run() generates  impl_*.md and potentially other docs
         # Architect agent now returns a list of paths
         impl_paths = architect.run()
         if not impl_paths: # Check if the list is empty
@@ -225,7 +255,7 @@ async def handle_build_command(project_name: str, projects_dir: str, execute_com
         # Optional: Check if all returned paths exist
         # if not all(os.path.exists(p) for p in impl_paths):
         #     raise FileNotFoundError("Architect agent returned paths to files that do not exist.")
-        print(f"{SUCCESS_COLOR}Architecture plan generated/updated: {', '.join(impl_paths)}{RESET_ALL}")
+        print(f"{SUCCESS_COLOR}Architecture plan generated: {', '.join(impl_paths)}{RESET_ALL}")
         # Optionally read and log content if needed for subsequent steps in a different flow
         # impl_content = architect._read_file(impl_md_path)
         # if not impl_content: raise IOError("Failed to read generated impl_*.md content.")
@@ -237,12 +267,44 @@ async def handle_build_command(project_name: str, projects_dir: str, execute_com
     logger.info(f"Architecture generation (--build) completed for project '{project_name}'.")
     print(f"\n{SUCCESS_COLOR}Architecture generation finished successfully for project '{project_name}'.{RESET_ALL}")
 
+async def handle_enhance_build_command(project_name: str, projects_dir: str, features: bool, execute_command_func):
+    """Handles the --enhance flag: Runs the Architect Agent to generate enhanced architecture docs."""
+    logger.info(f"Handling '--enhance' action (Architect only) for project: {project_name}")
+    project_path = get_project_path(project_name, projects_dir)
+    if not os.path.exists(project_path) or not os.path.isdir(project_path):
+        logger.error(f"Project '{project_name}' not found.")
+        print(f"{ERROR_COLOR}Error: Project '{project_name}' does not exist.")
+        return
+    idea_md_path = os.path.join(project_path, "docs", "idea.md")
+    if not os.path.exists(idea_md_path):
+        logger.error(f"Cannot build architecture: 'docs/idea.md' not found.")
+        print(f"{ERROR_COLOR}Error: 'docs/idea.md' not found. Please generate the idea first.")
+        return
+
+    print(f"{STEP_COLOR}Running Architect Agent to generate/update architecture plan...{RESET_ALL}")
+    architect = ArchitectAgent(project_name=project_name, project_path=project_path)
+    try:
+        # Assuming architect.run() generates docs
+        # Architect agent now returns a list of paths
+        out_paths = architect.run_enhance(features=features)
+        if not out_paths: # Check if the list is empty
+             raise FileNotFoundError("Architect agent did not produce any enhanced implementation files.")
+
+        print(f"{SUCCESS_COLOR}Architecture enhance docs generated: {', '.join(out_paths)}{RESET_ALL}")
+    except Exception as e:
+        logger.error(f"Architect Agent failed during --enhance: {e}", exc_info=True)
+        print(f"{ERROR_COLOR}Architecture enhance generation failed: {e}")
+        return
+
+    logger.info(f"Architecture generation (--build) completed for project '{project_name}'.")
+    print(f"\n{SUCCESS_COLOR}Architecture generation finished successfully for project '{project_name}'.{RESET_ALL}")
+
 
 # (Removed build pipeline steps: Dependencies, Coder, Reviewer, Tester, Documenter)
 
-async def handle_code_command(project_name: str, fix: bool, projects_dir: str, execute_command_func):
-    """Handles the --code command: Runs Coder Agent, optionally with --fix using review.md."""
-    logger.info(f"Handling '--code' action for project: {project_name}, Fix mode: {fix}")
+async def handle_code_command(project_name: str, projects_dir: str, execute_command_func):
+    """Handles the --code command: Runs Coder Agent """
+    logger.info(f"Handling '--code' action for project: {project_name}")
     project_path = get_project_path(project_name, projects_dir)
     if not os.path.exists(project_path) or not os.path.isdir(project_path):
         logger.error(f"Project '{project_name}' not found.")
@@ -275,25 +337,7 @@ async def handle_code_command(project_name: str, fix: bool, projects_dir: str, e
     # No need to read impl_content here anymore.
 
     feedback_content = None
-    if fix:
-        review_md_path = os.path.join(project_path, "docs", "review.md")
-        if not os.path.exists(review_md_path):
-            logger.error(f"Cannot apply fix: 'docs/review.md' not found.")
-            print(f"{ERROR_COLOR}Error: 'docs/review.md' not found. Please run --review first.")
-            return
-        try:
-            temp_reader = DocumenterAgent(project_name, project_path) # Reusing agent for its read method
-            feedback_content = temp_reader._read_file(review_md_path)
-            if not feedback_content:
-                 logger.warning(f"Review file '{review_md_path}' is empty. Proceeding without feedback.")
-                 print(f"{WARN_COLOR}Warning: Review file is empty.")
-            else:
-                 print(f"{INFO_COLOR}Applying fixes based on 'docs/review.md'...{RESET_ALL}")
-        except Exception as e:
-            logger.error(f"Failed to read review file '{review_md_path}': {e}", exc_info=True)
-            print(f"{ERROR_COLOR}Error reading review file: {e}")
-            return
-
+    
     # === Run Coder Agent ===
     print(f"{STEP_COLOR}Running Coder Agent...{RESET_ALL}")
     coder = CoderAgent(project_name=project_name, project_path=project_path)
@@ -301,29 +345,15 @@ async def handle_code_command(project_name: str, fix: bool, projects_dir: str, e
     try:
         # Pass impl_content=None, CoderAgent will read the files itself
         generated_files = coder.run(feedback=feedback_content, impl_content=None)
-        status_msg = "Code generated" if not fix else "Code fixed"
+        status_msg = "Code generated" 
         print(f"{SUCCESS_COLOR}{status_msg} for {len(generated_files)} file(s).{RESET_ALL}")
     except Exception as e:
         logger.error(f"Coder Agent failed: {e}", exc_info=True)
-        fail_msg = "Code generation" if not fix else "Code fixing"
-        print(f"{ERROR_COLOR}{fail_msg} failed: {e}")
+        print(f"{ERROR_COLOR} Code generation failed: {e}")
         return
 
-    # === Notify Architect Agent if fixing based on review ===
-    if fix and feedback_content:
-        print(f"{STEP_COLOR}Checking if architecture needs update based on review feedback...{RESET_ALL}")
-        architect = ArchitectAgent(project_name=project_name, project_path=project_path)
-        try:
-            # Run architect in update mode, passing review feedback as modification text
-            # The architect agent needs to be designed to handle this input appropriately.
-            updated_impl_path = architect.run(modification_text=f"Review feedback:\n{feedback_content}\n\nUpdate the architecture if necessary based on this feedback and the potentially changed code.")
-            print(f"{SUCCESS_COLOR}Architecture check completed. Plan potentially updated: {updated_impl_path}{RESET_ALL}")
-        except Exception as e:
-            logger.error(f"Architect Agent check/update failed after code fix: {e}", exc_info=True)
-            print(f"{WARN_COLOR}Warning: Code fixed, but failed to check/update architecture: {e}{RESET_ALL}")
-
-    logger.info(f"Code generation/fixing (--code) completed for project '{project_name}'.")
-    print(f"\n{SUCCESS_COLOR}Code generation/fixing finished successfully for project '{project_name}'.{RESET_ALL}")
+    logger.info(f"Code generation (--code) completed for project '{project_name}'.")
+    print(f"\n{SUCCESS_COLOR}Code generation finished successfully for project '{project_name}'.{RESET_ALL}")
 
 
 async def handle_review_command(project_name: str, projects_dir: str, execute_command_func):
@@ -464,6 +494,7 @@ async def main(execute_command_func):
     action_group.add_argument('--analyze', action='store_true', help='Perform market analysis for idea (requires --project)')
     action_group.add_argument('--docs', type=str, metavar='TYPE', help=f"Generate specific doc (requires --project).\nTypes: {', '.join(sorted(DocumenterAgent.SUPPORTED_DOC_TYPES))}")
     action_group.add_argument('--build', action='store_true', help='Generate architecture docs (impl_*.md) (requires --project)')
+    action_group.add_argument('--build-features', action='store_true', help='Generate architecture docs for all features (feature/impl_*.md) (requires --project)')
     action_group.add_argument('--code', action='store_true', help='Generate code based on impl_*.md (requires --project)')
     action_group.add_argument('--review', action='store_true', help='Review generated code and create review.md (requires --project)')
 
@@ -472,7 +503,9 @@ async def main(execute_command_func):
     parser.add_argument('--projects-dir', type=str, metavar='PATH', default=DEFAULT_PROJECTS_DIR,
                         help=f'Directory to store projects (default: {DEFAULT_PROJECTS_DIR})')
 
-    parser.add_argument('--wild', action='store_true', default=False, help='Use wild mode - innovatiove and futuristic enhanced prompt')
+    parser.add_argument('--enhance', action='store_true', default=False, help='Build enhanced documents based on idea.md, impl_*.md, integ.md')
+    parser.add_argument('--features', action='store_true', default=False, help='Build enhanced features document based on idea.md')
+    parser.add_argument('--wild', action='store_true', default=False, help='Use wild mode - innovatiove and futuristic prompt')
     parser.add_argument('--num-ideas', type=int, metavar='NUMBER', help='Number of ideas to genenrate according to subject (required subject)')
     parser.add_argument('--subject-name', type=str, metavar='TEXT', help='subject name - new json file name')
 
@@ -517,12 +550,20 @@ async def main(execute_command_func):
             if not project_name: parser.error("--docs requires --project NAME")
             if args.docs not in DocumenterAgent.SUPPORTED_DOC_TYPES: parser.error(f"Invalid doc type '{args.docs}'. Supported: {', '.join(DocumenterAgent.SUPPORTED_DOC_TYPES)}")
             handle_docs_command(doc_type=args.docs, project_name=project_name, projects_dir=projects_dir)
+        elif args.build_features:
+            if not project_name: 
+                parser.error("--build-features requires --project NAME")
+            await handle_build_features_command(project_name=project_name, projects_dir=projects_dir, execute_command_func=execute_command_func)
         elif args.build:
-            if not project_name: parser.error("--build requires --project NAME")
-            await handle_build_command(project_name=project_name, projects_dir=projects_dir, execute_command_func=execute_command_func)
+            if not project_name: 
+                parser.error("--build requires --project NAME")
+            if args.enhance:
+                await handle_enhance_build_command(project_name=project_name, projects_dir=projects_dir, features=args.features, execute_command_func=execute_command_func)
+            else:
+                await handle_build_command(project_name=project_name, projects_dir=projects_dir, execute_command_func=execute_command_func)
         elif args.code:
             if not project_name: parser.error("--code requires --project NAME")
-            await handle_code_command(project_name=project_name, fix=args.fix, projects_dir=projects_dir, execute_command_func=execute_command_func)
+            await handle_code_command(project_name=project_name, projects_dir=projects_dir, execute_command_func=execute_command_func)
         else:
             logger.error("No valid action flag provided.")
             parser.print_help()
