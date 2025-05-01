@@ -116,9 +116,25 @@ Runs the MarketAnalystAgent to analyze the market potential of the project idea 
 python src/main.py --build --project <your-project-name>
 # Example: python src/main.py --build --project a-cli-tool-for-basic-image...
 ```
-Runs the Architect Agent to generate or update implementation plan documents (`docs/impl_*.md`, `docs/integ.md`).
+Runs the Architect Agent to generate or update implementation plan documents (`docs/impl_*.md`).
 
-**10. Generate or Fix Code:**
+**10. Generate Architecture for Features:**
+
+```bash
+python src/main.py --build-features --project <your-project-name>
+# Example: python src/main.py --build-features --project a-cli-tool-for-basic-image...
+```
+Runs the Architect Agent to generate architecture docs for all features (`feature/impl_*.md`).
+
+**11. Enhance Build:**
+
+```bash
+python src/main.py --build --enhance --project <your-project-name>
+# Example: python src/main.py --build --enhance --project a-cli-tool-for-basic-image...
+```
+Runs the Architect Agent to generate enhanced architecture docs.
+
+**12. Generate or Update Code:**
 
 ```bash
 python src/main.py --code --project <your-project-name>
@@ -126,19 +142,14 @@ python src/main.py --code --project <your-project-name>
 ```
 Runs the Coder Agent to generate code based on the implementation plans.
 
-```bash
-python src/main.py --code --fix --project <your-project-name>
-```
-Runs the Coder Agent to fix code based on feedback in `docs/review.md`.
-
-**11. Review Code:**
+**13. Review Code:**
 
 ```bash
 python src/main.py --review --project <your-project-name>
 ```
 Runs the Reviewer Agent to review the generated code and create `docs/review.md` if issues are found.
 
-**12. Generate Specific Documentation:**
+**14. Generate Specific Documentation:**
 
 ```bash
 python src/main.py --docs <type> --project <your-project-name>
@@ -146,28 +157,6 @@ python src/main.py --docs <type> --project <your-project-name>
 # Example: python src/main.py --docs api --project a-cli-tool-for-basic-image...
 ```
 Runs the Documenter Agent to generate a specific documentation file.
-
-**13. Update an Existing Project (General):**
-
-```bash
-python src/main.py --update "Instructions for modification" --project <your-project-name>
-# Example: python src/main.py --update "Add support for resizing images" --project a-cli-tool-for-basic-image...
-```
-Runs a sequence of agents (Architect, Coder, Tester, Documenter) to update the project based on general instructions.
-
-**14. Reset Project:**
-
-```bash
-python src/main.py --reset --project <your-project-name>
-```
-Deletes generated docs and `requirements.txt`, keeping `idea.md`, `src/`, `tests/`, `.venv/`.
-
-**15. Scratch Project:**
-
-```bash
-python src/main.py --scratch --project <your-project-name>
-```
-Deletes generated docs, `requirements.txt`, `src/`, `tests/`, and `.venv/`, keeping only `docs/idea.md` and the basic directory structure.
 
 ## Agent Roles
 
