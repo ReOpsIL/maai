@@ -176,8 +176,8 @@ Based on src/main.py, the agents are:
 
 ## Contributing
 
-(Optional: Add guidelines for contributing if this is an open project).
+Just contribute - don't make mess :-)
 
 ## License
 
-(Optional: Specify the project's license, e.g., MIT License).
+MIT License.
