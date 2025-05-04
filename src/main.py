@@ -24,7 +24,7 @@ from utils import slugify, load_config
 from agents import (
     InnovatorAgent, ArchitectAgent, CoderAgent, ReviewerAgent, TesterAgent,
     DocumenterAgent, MarketAnalystAgent, ResearchAgent, BusinessAgent, ScoringAgent,
-    IdeaGenAgent, TasksAgent
+    IdeaGenAgent, TasksAgent, DiagramAgent
 )
 
 # --- Constants ---
@@ -158,6 +158,15 @@ def handle_tests_command(project_name: str | None, projects_dir: str):
     except Exception as e: logger.error(f"Tester Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error geenrating testing code for project: {e}")
 
 
+def handle_diagrams_command(project_name: str | None, projects_dir: str):
+    logger.info(f"Handling '--diagrams', Project='{project_name}'")
+    project_path = get_project_path(project_name, projects_dir)
+    print(f"{AGENT_COLOR}Initializing Diagram Agent...{RESET_ALL}")
+    diagrams = DiagramAgent(project_name=project_name, project_path=project_path)
+    try:
+        diagrams_path = diagrams.run()
+        print(f"{SUCCESS_COLOR}Successfully geenrated diagrams for the project '{project_name}'. Tasks report saved to: {diagrams_path}")
+    except Exception as e: logger.error(f"Diagram Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error geenrating diagrams for project: {e}")
 
 def handle_business_command(project_name: str | None, projects_dir: str):
     logger.info(f"Handling '--business', Project='{project_name}'")
@@ -500,6 +509,10 @@ async def main(execute_command_func):
     action_group.add_argument('--bulk', type=str, metavar='TEXT', help='Generate new projects ideas based on subject json file')
     action_group.add_argument('--idea', type=str, metavar='TEXT', help='Generate new project idea')
     action_group.add_argument('--tasks', type=str, metavar='TEXT', help='Generate tasks document for the project idea.md')
+
+    action_group.add_argument('--tests', type=str, metavar='TEXT', help='Generate tests for the project soourc code')
+    action_group.add_argument('--diagrams', type=str, metavar='TEXT', help='Generate diagrams for the project source code and documents')
+
     action_group.add_argument('--business', action='store_true', help='Generate business docs (business.md) (requires --project)')
     action_group.add_argument('--scoring', action='store_true', help='Generate scoring docs (scoring.md) (requires --project)')
     action_group.add_argument('--research', action='store_true', help='Perform technical research for idea (requires --project)')
@@ -550,6 +563,10 @@ async def main(execute_command_func):
             handle_idea_command(idea_text=args.idea, project_name=project_name, projects_dir=projects_dir, wild_mode=args.wild)
         elif args.tasks:
             handle_tasks_command(project_name=project_name, projects_dir=projects_dir)
+        elif args.tests:
+            handle_tests_command(project_name=project_name, projects_dir=projects_dir)
+        elif args.diagrams:
+            handle_diagrams_command(project_name=project_name, projects_dir=projects_dir)
         elif args.business:
             handle_business_command(project_name=project_name, projects_dir=projects_dir)
         elif args.scoring:

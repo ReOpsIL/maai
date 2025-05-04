@@ -3,7 +3,7 @@ from .base_agent import BaseAgent
 
 class TasksAgent(BaseAgent):
     """
-    Pros and Cons a simple user idea in tasks perspective.
+    Generate tasks file for project.
     """
 
     def run(self):

@@ -3,7 +3,7 @@ from .base_agent import BaseAgent
 
 class IdeaGenAgent(BaseAgent):
     """
-    Pros and Cons a simple user idea in business perspective.
+    Create list of ideas based on subject provided by user.
     """
 
     def run(self, idea_subject_text: str, subject_name: str, num_ideas: int, wild_mode: bool):

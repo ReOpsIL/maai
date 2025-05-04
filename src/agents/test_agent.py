@@ -72,7 +72,7 @@ class TesterAgent(BaseAgent):
             self.logger.error(f"An unexpected error occurred during test generation: {e}", exc_info=True)
             raise RuntimeError(f"An unexpected error occurred during test generation: {e}")
 
-    def _generate(self, impl_content: str, source_code: dict[str, str], existing_tests: dict[str, str] | None) -> dict[str, str]:
+    def _generate(self, impl_content: str, source_code: str) -> dict[str, str]:
         """Uses Generative AI to create or update pytest test cases."""
         # Model initialization is now handled by BaseAgent
         if not self.model:
