@@ -53,15 +53,16 @@ class TesterAgent(BaseAgent):
             # --- Parsing the generated text into files ---
             # Use the existing robust parser
             generated_content = coder._parse_code_blocks(generated_test_files_content)
-            if not test_files:
-                 # This is more critical now, as it means no code was generated 
-                 self.logger.warning("AI response parsed, but no valid code blocks (```python filename=...```) found.")
-                 # Returning empty dict, the caller handles the warning/error.
-
+            if not generated_content:
+                self.logger.warning("AI response parsed, but no valid test code blocks (```<<<FILENAME: ...```) found.")
+                raise RuntimeError("AI response parsed, but no valid test code blocks (```<<<FILENAME: ...```) found.")
             test_files = coder._write_code_files(generated_content)
-
+            if not test_files:
+                self.logger.warning("Failed to write test files")
+                raise RuntimeError("Failed to write test files")
+            
             log_action =  "generated"
-            self.logger.info(f"Successfully {log_action} content for {len(generated_test_files_content)} test file(s) using AI.")
+            self.logger.info(f"Successfully generatedcontent for {len(generated_test_files_content)} test file(s) using AI.")
 
             return test_files
 
@@ -72,7 +73,7 @@ class TesterAgent(BaseAgent):
             self.logger.error(f"An unexpected error occurred during test generation: {e}", exc_info=True)
             raise RuntimeError(f"An unexpected error occurred during test generation: {e}")
 
-    def _generate(self, impl_content: str, source_code: str) -> dict[str, str]:
+    def _generate(self, all_content: str, source_code: str) -> dict[str, str]:
         """Uses Generative AI to create or update pytest test cases."""
         # Model initialization is now handled by BaseAgent
         if not self.model:
@@ -80,7 +81,7 @@ class TesterAgent(BaseAgent):
             raise RuntimeError("TesterAgent requires a configured Generative Model.")
 
         # Create mode
-        prompt = self._create_test_prompt(impl_content, source_code)
+        prompt = self._create_test_prompt(all_content, source_code)
         self.logger.debug(f"Generated create prompt for LLM (Tester):\n{prompt[:500]}...")
         try:
             self.logger.info("Sending request to LLM API for test generation...")
@@ -96,7 +97,7 @@ class TesterAgent(BaseAgent):
             self.logger.error(f"An unexpected error occurred during LLM API call (Tester): {e}", exc_info=True)
             raise RuntimeError(f"Failed to generate tests using AI: {e}")
 
-    def _create_test_prompt(self, md_content: str, source_code: str) -> str: # For initial creation
+    def _create_test_prompt(self, all_content: str, source_code: str) -> str: # For initial creation
         """Creates the prompt for the generative AI model to generate tests from scratch."""
 
         prompt = f"""
@@ -105,7 +106,7 @@ class TesterAgent(BaseAgent):
 
 1.  **Project Documentation (Markdown):** Contains project idea, features, integration details, and implementation plans.
     ```markdown
-    {md_content}
+    {all_content}
     ```
 
 2.  **Project Source Code:** The existing source code generated for the project.

@@ -518,7 +518,7 @@ my_project_root/
 
     def read_all_code_files(self) -> str:
         """Recursively reads all files (not just .py) from project directory."""
-        base_path = Path(self.project_pat)
+        base_path = Path(self.project_path)
 
         all_source_code = ""
 
@@ -538,7 +538,6 @@ my_project_root/
                     all_source_code += f"<<<FILENAME: {relative_path_posix}\n\n"
                     all_source_code += content + "\n\n"
                     all_source_code += ">>>"
-
                  
                 except Exception as e:
                     # Log error but continue reading other files

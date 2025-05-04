@@ -508,10 +508,10 @@ async def main(execute_command_func):
     action_group.add_argument('--subject', type=str, metavar='TEXT', help='Generate new list of projects ideas based on subject (requiers --num_ideas --subject_name)')
     action_group.add_argument('--bulk', type=str, metavar='TEXT', help='Generate new projects ideas based on subject json file')
     action_group.add_argument('--idea', type=str, metavar='TEXT', help='Generate new project idea')
-    action_group.add_argument('--tasks', type=str, metavar='TEXT', help='Generate tasks document for the project idea.md')
+    action_group.add_argument('--tasks', action='store_true', help='Generate tasks document for the project idea.md')
 
-    action_group.add_argument('--tests', type=str, metavar='TEXT', help='Generate tests for the project soourc code')
-    action_group.add_argument('--diagrams', type=str, metavar='TEXT', help='Generate diagrams for the project source code and documents')
+    action_group.add_argument('--tests', action='store_true', help='Generate tests for the project soourc code')
+    action_group.add_argument('--diagrams', action='store_true', help='Generate diagrams for the project source code and documents')
 
     action_group.add_argument('--business', action='store_true', help='Generate business docs (business.md) (requires --project)')
     action_group.add_argument('--scoring', action='store_true', help='Generate scoring docs (scoring.md) (requires --project)')
