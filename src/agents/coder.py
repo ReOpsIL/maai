@@ -18,6 +18,105 @@ TREE_CHARS_PATTERN = r"^[│├└─ L|]+" # Regex to remove tree drawing chara
 DIR_MARKER = '/' # Character indicating a directory in the structure text
 # --- End Helper Configuration ---
 
+source_code_extensions = [
+    # Java / Kotlin / Android
+    ".java", ".class", ".jar", ".kt", ".kts", ".xml", ".gradle", ".pro", ".aidl", ".smali", ".dex",
+
+    # iOS / Swift / Objective-C
+    ".swift", ".m", ".h", ".mm", ".plist", ".xib", ".storyboard", ".xcconfig", ".entitlements",
+
+    # JavaScript / TypeScript / Web
+    ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".json", ".html", ".htm",
+    ".css", ".scss", ".sass", ".less", ".ejs", ".hbs", ".pug", ".jade", ".twig", ".liquid", ".md",
+
+    # Node.js / Config
+    ".env", ".yml", ".yaml",
+
+    # Flutter / Dart
+    ".dart",
+
+    # React Native / Cross-platform
+    # (Already included: .js, .jsx, .ts, .tsx, .json)
+
+    # Xamarin / C#
+    ".cs", ".xaml",
+
+    # C / C++
+    ".c", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".hh", ".hxx", ".ino",
+
+    # Rust
+    ".rs",  # Plus Cargo.toml and Cargo.lock (not extensions)
+
+    # Python
+    ".py", ".pyi", ".ipynb",
+
+    # Go
+    ".go",  # go.mod and go.sum are not extensions
+
+    # Ruby
+    ".rb", ".erb",
+
+    # PHP
+    ".php", ".phtml",
+
+    # Shell / Scripting
+    ".sh", ".bash", ".bat", ".ps1",
+
+    # Perl
+    ".pl", ".pm",
+
+    # Lisp / Clojure
+    ".lisp", ".el", ".scm", ".clj",
+
+    # Julia
+    ".jl",
+
+    # Assembly
+    ".asm", ".s", ".S",
+
+    # Misc Config / Meta Files
+    ".toml", ".ini", ".cfg"
+]
+
+programing_extensions = [
+    # Java / Kotlin / Android
+    ".java",  ".kt", 
+    # iOS / Swift / Objective-C
+    ".swift", ".m", ".h", ".mm", 
+
+    # JavaScript / TypeScript / Web
+    ".js", ".jsx", ".ts", ".tsx", 
+
+    # Flutter / Dart
+    ".dart",
+
+    # Xamarin / C#
+    ".cs", ".xaml",
+
+    # C / C++
+    ".c", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".hh", ".hxx",
+
+    # Rust
+    ".rs",  
+
+    # Python
+    ".py",
+
+    # Go
+    ".go",  
+
+    # Ruby
+    ".rb",
+
+    # PHP
+    ".php", 
+
+    # Perl
+    ".pl",
+
+    # Julia
+    ".jl"
+]
 
 class CoderAgent(BaseAgent):
     """
@@ -41,34 +140,15 @@ class CoderAgent(BaseAgent):
         return content
 
     def get_feature_content(self):
-        self.logger.info(f"Reading features from features.md")
-        file_path = os.path.join(self.docs_path, "features.md")
-        content = self._read_file(file_path)
-        if content is not None:
-            content = f"# --- Content from: features.md ---\n\n{content}\n\n# --- End of: features.md ---"
-        else:
-            self.logger.warning(f"Could not read content from features file: features.md")
-            raise Exception("FATAL error - Stopping!")
+        self.logger.info(f"Reading features from files in: {self.docs_path}")
 
-        if not content:
-            raise FileNotFoundError(f"Failed to read content from features file: features.md")
-
-        return content
-
-    def get_impl_content(self):
-        self.logger.info(f"Searching for implementation plans (impl_*.md, integ.md) in: {self.docs_path}")
-        plan_files = []
         all_files = []
         try:
             all_files = os.listdir(self.docs_path)
-            plan_files = [
+            feature_files = [
                 f for f in all_files
-                if (f.startswith("impl_") and f.endswith(".md")) or f == "integ.md"
+                if f.startswith("feature_") and f.endswith(".md")
             ]
-            # Prioritize integ.md if it exists
-            if "integ.md" in plan_files:
-                plan_files.remove("integ.md")
-                plan_files.insert(0, "integ.md") # Read integration first
 
         except FileNotFoundError:
                 self.logger.error(f"Documentation directory not found: {self.docs_path}")
@@ -77,29 +157,90 @@ class CoderAgent(BaseAgent):
                 self.logger.error(f"Error listing files in {self.docs_path}: {e}", exc_info=True)
                 raise RuntimeError(f"Could not list files in documentation directory: {e}")
 
-        if not plan_files:
-            self.logger.error(f"No implementation plan files (impl_*.md, integ.md) found in {self.docs_path}.")
-            raise FileNotFoundError(f"No implementation plan files found for project {self.project_name} in {self.docs_path}. Ensure the Architect Agent ran successfully.")
+        if not feature_files:
+            self.logger.error(f"No feature files (feature*.md) found in {self.docs_path}.")
+            raise FileNotFoundError(f"No feature files found for project {self.project_name} in {self.docs_path}. Ensure the Architect Agent ran successfully.")
 
         combined_content = []
-        self.logger.info(f"Reading implementation plans from: {', '.join(plan_files)}")
-        for filename in plan_files:
+        combined_files = feature_files
+        self.logger.info(f"Reading features content from: {', '.join(combined_files)}")
+        for filename in combined_files:
             file_path = os.path.join(self.docs_path, filename)
             content = self._read_file(file_path)
             if content is not None:
                 combined_content.append(f"# --- Content from: {filename} ---\n\n{content}\n\n# --- End of: {filename} ---")
             else:
-                self.logger.warning(f"Could not read content from implementation file: {file_path}")
+                self.logger.warning(f"Could not read content from file: {file_path}")
                 raise Exception("FATAL error - Stopping!")
 
         if not combined_content:
-                raise FileNotFoundError(f"Failed to read content from any identified implementation plan files: {', '.join(plan_files)}")
+                raise FileNotFoundError(f"Failed to read content from files: {', '.join(combined_files)}")
 
-        impl_content = "\n\n".join(combined_content)
-        self.logger.info(f"Successfully combined content from {len(plan_files)} implementation plan file(s). Total length: {len(impl_content)} chars.")
-        return impl_content, plan_files
+        content = "\n\n".join(combined_content)
+        self.logger.info(f"Successfully combined content from {len(combined_files)} file(s). Total length: {len(content)} chars.")
+        return content, combined_content
 
-    def run(self, feedback: str | None = None):
+    def get_all_content(self):
+        self.logger.info(f"Searching for features, implementation and integration files in: {self.docs_path}")
+        
+        all_files = ["idea.md"]
+
+        try:
+            all_files = os.listdir(self.docs_path)
+            feature_files = [
+                f for f in all_files
+                if f.startswith("feature_") and f.endswith(".md")
+            ]
+
+            impl_files = [
+                f for f in all_files
+                if f.startswith("impl_") and f.endswith(".md")
+            ]
+
+            integ_files = [
+                f for f in all_files
+                if f.startswith("integ_") and f.endswith(".md")
+            ]
+
+        except FileNotFoundError:
+                self.logger.error(f"Documentation directory not found: {self.docs_path}")
+                raise FileNotFoundError(f"Documentation directory not found: {self.docs_path}")
+        except Exception as e:
+                self.logger.error(f"Error listing files in {self.docs_path}: {e}", exc_info=True)
+                raise RuntimeError(f"Could not list files in documentation directory: {e}")
+
+        if not feature_files:
+            self.logger.error(f"No feature files (feature*.md) found in {self.docs_path}.")
+            raise FileNotFoundError(f"No feature files found for project {self.project_name} in {self.docs_path}. Ensure the Architect Agent ran successfully.")
+
+        if not impl_files:
+            self.logger.error(f"No implementation plan files (impl*.md) found in {self.docs_path}.")
+            raise FileNotFoundError(f"No implementation plan files found for project {self.project_name} in {self.docs_path}. Ensure the Architect Agent ran successfully.")
+
+        if not integ_files:
+            self.logger.error(f"No integration plan files (integ*.md, integ.md) found in {self.docs_path}.")
+            raise FileNotFoundError(f"No integrationfiles found for project {self.project_name} in {self.docs_path}. Ensure the Architect Agent ran successfully.")
+
+        combined_content = []
+        combined_files = feature_files+impl_files+integ_files
+        self.logger.info(f"Reading implementation plans from: {', '.join(combined_files)}")
+        for filename in combined_files:
+            file_path = os.path.join(self.docs_path, filename)
+            content = self._read_file(file_path)
+            if content is not None:
+                combined_content.append(f"# --- Content from: {filename} ---\n\n{content}\n\n# --- End of: {filename} ---")
+            else:
+                self.logger.warning(f"Could not read content from file: {file_path}")
+                raise Exception("FATAL error - Stopping!")
+
+        if not combined_content:
+                raise FileNotFoundError(f"Failed to read content from files: {', '.join(combined_files)}")
+
+        content = "\n\n".join(combined_content)
+        self.logger.info(f"Successfully combined content from {len(combined_files)} file(s). Total length: {len(content)} chars.")
+        return content, combined_content
+
+    def run(self):
         """
         Executes the Coder agent's task: structuring the project and generating/updating source files.
 
@@ -110,36 +251,33 @@ class CoderAgent(BaseAgent):
         self.logger.info(f"Running Coder Agent for project: {self.project_name} )")
 
         # 1. Read Implementation Plan (Common to both modes)
-        impl_content, _ = self.get_impl_content()
+        all_content, _ = self.get_all_content()
 
         written_files = [] # Keep track of files actually written
 
     
-        # --- CREATE MODE (Initial or with Feedback) ---
-        if feedback:
-            self.logger.info(f"Incorporating feedback from review/test:\n{feedback}")
-
-        # 2. Generate and Create Project Structure (Only in Create Mode)
-        self.logger.info("Phase 1: Determining and creating project structure...")
-        try:
-            # Ask Gemini for the structure based on the implementation plan
-            structure_text = self._generate_structure_list(impl_content)
-            # Parse the text and create directories/empty files
-            scaffolded_files = self._create_project_scaffolding(structure_text)
-            self.logger.info(f"Successfully scaffolded {len(scaffolded_files)} potential files/dirs.")
-        except (ValueError, ConnectionError, RuntimeError, OSError) as e:
-            self.logger.error(f"Failed to establish project structure: {e}", exc_info=True)
-            raise RuntimeError(f"Coder Agent failed during structure generation: {e}")
-        except Exception as e:
-                self.logger.error(f"An unexpected error occurred during structure generation: {e}", exc_info=True)
-                raise RuntimeError(f"An unexpected error occurred in Coder Agent structure phase: {e}")
+        # --- CREATE MODE ---
+    
+        # # 2. Generate and Create Project Structure (Only in Create Mode)
+        # self.logger.info("Phase 1: Determining and creating project structure...")
+        # try:
+        #     # Ask Gemini for the structure based on the implementation plan
+        #     structure_text = self._generate_structure_list(all_content)
+        #     # Parse the text and create directories/empty files
+        #     scaffolded_files = self._create_project_scaffolding(structure_text)
+        #     self.logger.info(f"Successfully scaffolded {len(scaffolded_files)} potential files/dirs.")
+        # except (ValueError, ConnectionError, RuntimeError, OSError) as e:
+        #     self.logger.error(f"Failed to establish project structure: {e}", exc_info=True)
+        #     raise RuntimeError(f"Coder Agent failed during structure generation: {e}")
+        # except Exception as e:
+        #         self.logger.error(f"An unexpected error occurred during structure generation: {e}", exc_info=True)
+        #         raise RuntimeError(f"An unexpected error occurred in Coder Agent structure phase: {e}")
 
 
         # 3. Generate Code Content
-        self.logger.info("Phase 2: Generating code content for scaffolded files...")
+        self.logger.info("Phase 1: Generating code content ...")
         generated_content = self._generate(
-            impl_content=impl_content,
-            feedback=feedback # Pass feedback for generation
+            all_content=all_content
         )
         log_action = "generated"
 
@@ -188,9 +326,9 @@ class CoderAgent(BaseAgent):
     def _create_structure_prompt(self, impl_content: str) -> str:
         """Creates the prompt to ask the LLM for the project directory structure."""
         return f"""
-Based on the following implementation plan (impl_*.md), generate the complete directory structure and file list for the project.
+Based on the following feature descriptions (feature_*.md), implementation plan (impl_*.md) and integration plan (integ_*.md), generate the complete directory structure and file list for the project.
 
-**Integration plan (`integ.md`) and Implementation Plan (`impl_*.md`):**
+**Feature descriptions (feature_*.md), Integration plans (`integ_*.md`) and Implementation Plans (`impl_*.md`):**
 ```markdown
 
 {impl_content}
@@ -202,11 +340,11 @@ Based on the following implementation plan (impl_*.md), generate the complete di
 1.  **List all necessary directories and files.**
 2.  **Use indentation (4 spaces)** to represent the hierarchy (subdirectories and files within directories).
 3.  **Clearly mark directories** by appending a forward slash (`{DIR_MARKER}`) to their names.
-4.  **Include all source files** (e.g., `.py`), configuration files (e.g., `requirements.txt`, `.gitignore`, `Dockerfile`), documentation files (`README.md`), etc., mentioned or implied by the plan.
+4.  **Include all source files** (e.g., {','.join(source_code_extensions)}), configuration files (e.g., `requirements.txt`, `.gitignore`, `Dockerfile`), documentation files (`README.md`), etc., mentioned or implied by the plan.
 5.  **Do NOT include generated code content here.** Only provide the file and directory names in a tree structure.
 6.  Start the structure from the project's root directory. Assume the project name itself is the root.
 
-**Example Output Format:**
+**Example Output Format fro python files, could be the same fot :**
 
 ```text
 my_project_root/
@@ -378,20 +516,18 @@ my_project_root/
         return created_files
 
 
-    # ===========================================
-    # --- Code Generation/Update Phase ---
-    # ===========================================
+    def read_all_code_files(self) -> str:
+        """Recursively reads all files (not just .py) from project directory."""
+        base_path = Path(self.project_pat)
 
-    def _read_all_code_files(self, start_path: str) -> dict[str, str]:
-        """Recursively reads all files (not just .py) from a directory for the update prompt."""
-        code_files = {}
-        base_path = Path(start_path)
-        if not base_path.is_dir():
-            return code_files
+        all_source_code = ""
 
         for item in base_path.rglob('*'): # Recursively find all items
             if item.is_file():
                 try:
+                    if Path(item).suffix not in programing_extensions:
+                         continue
+                    
                     # Calculate path relative to the starting path
                     relative_path = str(item.relative_to(base_path))
                     # Use os specific separators for dictionary keys? Match LLM format?
@@ -399,23 +535,26 @@ my_project_root/
                     relative_path_posix = relative_path.replace(os.sep, '/')
 
                     content = self._read_file(str(item)) # Read file using existing helper
-                    if content is not None:
-                        code_files[relative_path_posix] = content
+                    all_source_code += f"<<<FILENAME: {relative_path_posix}\n\n"
+                    all_source_code += content + "\n\n"
+                    all_source_code += ">>>"
+
+                 
                 except Exception as e:
                     # Log error but continue reading other files
                     self.logger.error(f"Error reading file {item} for update context: {e}", exc_info=False) # Keep log brief
 
-        return code_files
+        return all_source_code
 
 
-    def _generate(self, impl_content: str, feedback: str | None) -> dict[str, str]:
+    def _generate(self, all_content: str) -> dict[str, str]:
         """Uses Generative AI to create the code content for ALL files."""
         if not self.model:
             raise RuntimeError("Generative model not initialized.")
 
 
-        prompt = self._create_code_generation_prompt(impl_content, feedback) # Renamed from _create_prompt
-        self.logger.debug(f"Generated create/feedback prompt for LLM (Coder):\n{prompt[:500]}...")
+        prompt = self._create_code_generation_prompt(all_content) # Renamed from _create_prompt
+        self.logger.debug(f"Generated create prompt for LLM (Coder):\n{prompt[:500]}...")
         try:
             self.logger.info("Sending request to LLM API for code content generation ...")
             # Consider increasing max output tokens if needed
@@ -438,67 +577,134 @@ my_project_root/
             self.logger.error(f"An unexpected error occurred during LLM API call (Code Gen): {e}", exc_info=True)
             raise RuntimeError(f"Failed to generate code using AI: {e}")
 
-    def _create_code_generation_prompt(self, impl_content: str, feedback: str | None) -> str: # Renamed
+    def _create_code_generation_prompt(self, impl_content: str) -> str:
         """Creates the prompt for the generative AI model to generate code for ALL files from scratch or based on feedback."""
-        feedback_section = ""
-        if feedback:
-            feedback_section = f"""
-**Incorporate the following feedback from the previous Review/Test cycle:**
-```
-{feedback}
-```
-Address these points specifically in the generated code for the relevant files.
-"""
-
+    
         prompt = f"""
-Generate the complete, runnable code content for ALL necessary files for the project described in the following implementation plan (impl_*.md). Adhere strictly to the plan's specifications regarding modules, classes, methods, file structure, and overall architecture.
+Generate the complete, runnable code content for ALL necessary files for the project described in the provided project details. 
+The project might involve various programming languages (like Python, JavaScript, TypeScript, Java, Kotlin, etc.) and platforms (like backend, web frontend, Android, etc.).
+Adhere strictly to the plan's specifications regarding languages, frameworks, modules, classes, methods, file structure, and overall architecture.
 
-**Implementation Plan (from impl_*.md):**
+** Project Details (incorporating idea, features, integration, and implementation plans):**
 ```markdown
 {impl_content}
 ```
-{feedback_section}
 **Instructions:**
 
-1.  **Generate the full content for ALL required files.** This includes Python source files (`.py`), configuration files (`requirements.txt`, `.gitignore`, `Dockerfile`, etc.), `README.md`, and any other files specified or implied by the implementation plan.
-2.  **Use Python 3.11+ syntax, including type hints** as specified in the plan for `.py` files.
-3.  **Implement all core logic, classes, functions, etc.** defined in the plan. Include basic error handling where appropriate (e.g., file I/O, network requests).
-4.  **Add necessary import statements** at the beginning of each Python file.
-5.  **Include basic docstrings** for Python classes and functions.
+1.  **Generate the full content for ALL required files.** This includes source code files (e.g., `.py`, `.js`, `.ts`, `.java`, `.kt`, `.html`, `.css`), configuration files (e.g., `requirements.txt`, `package.json`, `build.gradle`, `AndroidManifest.xml`, `tsconfig.json`, `Dockerfile`, `.gitignore`), documentation (`README.md`), tests, and any other files specified or implied by the project details.
+2.  **Adhere to the language, version, and style conventions specified or implied in the plan.**
+    *   For **Python**: Use Python 3.11+ syntax with type hints if specified.
+    *   For **JavaScript/TypeScript**: Use modern standards (e.g., ES6+/latest TypeScript) and specified frameworks (React, Vue, Angular, Node.js, etc.).
+    *   For **Java/Kotlin (Android/Backend)**: Use the specified Java/Kotlin versions and adhere to platform conventions (Android SDK, Spring Boot, etc.).
+    *   For **Web**: Use HTML5, CSS3, and follow specified preprocessor/framework guidelines.
+    *   If language specifics are unclear in the plan, use common modern standards and best practices for that language/platform.
+3.  **Implement all core logic, classes, functions, UI layouts, components, etc.** defined in the plan. Include basic error handling where appropriate (e.g., file I/O, network requests, user input validation, null checks).
+4.  **Include necessary import/require/include statements** at the beginning of each source file, appropriate for the language and module system used (e.g., Python imports, ES modules, CommonJS, Java imports, Kotlin imports).
+5.  **Include basic documentation comments** for primary functions, classes, and methods in the respective languages (e.g., Python docstrings, JSDoc, JavaDoc, KDoc). For configuration or markup files, add comments where clarification is needed.
 6.  **Structure the output using Markdown code blocks.** Each block MUST be prefixed with the intended relative filename from the project root, like this:
 
-    ```python filename=src/some_module.py
-    # Contents of src/some_module.py
+    *Example Structure:*
+    ```
+    <<<FILENAME: src/main.py
+    # Python example
     import os
 
-    def main():
-        print("Hello from some_module!")
+    def main() -> None:
+        \"\"\"Main entry point.\"\"\"
+        print("Hello from Python!")
 
     if __name__ == "__main__":
         main()
-    ```
+    >>>
 
-    ```text filename=requirements.txt
+    <<<FILENAME: static/js/app.js
+    // JavaScript example
+    document.addEventListener('DOMContentLoaded', () => {{
+      console.log('Hello from JavaScript!');
+    }});
+    >>>
+
+    <<<FILENAME: app/src/main/java/com/example/myapp/MainActivity.java
+    // Java/Android example
+    package com.example.myapp;
+
+    import androidx.appcompat.app.AppCompatActivity;
+    import android.os.Bundle;
+    import android.util.Log;
+
+    public class MainActivity extends AppCompatActivity {{
+        private static final String TAG = "MainActivity";
+
+        @Override
+        protected void onCreate(Bundle savedInstanceState) {{
+            super.onCreate(savedInstanceState);
+            setContentView(R.layout.activity_main);
+            Log.d(TAG, "Hello from Android!");
+        }}
+    }}
+    >>>
+
+    <<<FILENAME: templates/index.html
+    <!-- HTML example -->
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>My Web App</title>
+        <link rel="stylesheet" href="/static/css/style.css">
+    </head>
+    <body>
+        <h1>Hello from HTML!</h1>
+        <script src="/static/js/app.js"></script>
+    </body>
+    </html>
+    >>>
+
+    <<<FILENAME: requirements.txt
+    # Python dependencies
     flask>=2.0
     requests
-    ```
+    >>>
 
-    ```markdown filename=README.md
+    <<<FILENAME: package.json
+    {{
+      "name": "my-web-app",
+      "version": "1.0.0",
+      "description": "",
+      "main": "server.js",
+      "scripts": {{
+        "start": "node server.js"
+      }},
+      "dependencies": {{
+        "express": "^4.17.1"
+      }}
+    }}
+    >>>
+
+    <<<FILENAME: README.md
     # My Project
-    This project does X, Y, Z.
-    ```
+    This project implements [features] using [technology stack].
+    Follow setup instructions...
+    >>>
 
-    ```text filename=.gitignore
+    <<<FILENAME: .gitignore
+    # General ignores
     __pycache__/
     *.pyc
+    node_modules/
+    build/
     .env
+    *.log
+    >>>
     ```
-7.  **Ensure the `filename=` paths are relative to the project root** and match the structure outlined or implied in the implementation plan (e.g., `src/main.py`, `tests/test_app.py`, `README.md`).
-8.  **Do NOT add explanatory text outside the formatted code blocks.** Focus solely on generating the file contents within their respective blocks.
-9.  If the plan is unclear, make a reasonable assumption and add a `# TODO:` comment in the Python code or a note in other file types.
-10. **Generate ALL files in a single response.**
+7.  **Ensure the `<<<FILENAME:` paths are relative to the project root** and accurately reflect the structure outlined or implied in the project plan (e.g., `src/main.py`, `app/src/main/res/layout/activity_main.xml`, `public/index.html`, `README.md`).
+8.  **Do NOT add any explanatory text, introductions, or summaries outside the formatted code blocks.** Focus solely on generating the file contents within their respective `<<<FILENAME: ...>>> ... >>>` blocks.
+9.  If the plan is unclear on a specific implementation detail, make a reasonable assumption aligned with the overall architecture and add a `# TODO:` or `<!-- TODO: -->` comment (or equivalent for the language) explaining the assumption or the need for clarification.
+10. **Generate ALL specified and implied files in a single, complete response.** Ensure the generated code is runnable or buildable given the correct environment and dependencies.
 """
         return prompt
+
 
     # ===========================================
     # --- File Parsing and Writing ---
@@ -511,12 +717,22 @@ Generate the complete, runnable code content for ALL necessary files for the pro
         """
         # Regex to find ```lang filename=path/to/file ... ``` blocks
         # Captures optional language hint, filename, and code content.
+        # pattern = re.compile(
+        #     r"```(?P<lang>\w+)?\s+filename=(?P<filename>[^\s`]+)\s*\n" # Start fence, lang (optional), filename
+        #     r"(?P<code>.*?)\n"                                         # Code content (non-greedy)
+        #     r"```",                                                    # End fence
+        #     re.DOTALL | re.IGNORECASE
+        # )
+
         pattern = re.compile(
-            r"```(?P<lang>\w+)?\s+filename=(?P<filename>[^\s`]+)\s*\n" # Start fence, lang (optional), filename
+            r"<<<FILENAME:\s+(?P<filename>[^\s`]+)\s*\n" # Start fence, filename
             r"(?P<code>.*?)\n"                                         # Code content (non-greedy)
-            r"```",                                                    # End fence
+            r">>>",                                                    # End fence
             re.DOTALL | re.IGNORECASE
         )
+
+        files_pattern = re.compile(r"<<<FILENAME:\s*(.*?)>>>\s*(.*?)(?=\s*<<<FILENAME|\Z)", re.DOTALL | re.IGNORECASE)
+
 
         files = {}
         matches = pattern.finditer(generated_text)
@@ -555,7 +771,7 @@ Generate the complete, runnable code content for ALL necessary files for the pro
 
 
         if not found_blocks:
-             self.logger.warning("No code/content blocks matching the expected format (```[lang] filename=...```) were found in the AI response.")
+             self.logger.warning("No code/content blocks matching the expected format (<<<FILENAME: ...>>>) were found in the AI response.")
 
         return files
 

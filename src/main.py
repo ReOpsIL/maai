@@ -24,7 +24,7 @@ from utils import slugify, load_config
 from agents import (
     InnovatorAgent, ArchitectAgent, CoderAgent, ReviewerAgent, TesterAgent,
     DocumenterAgent, MarketAnalystAgent, ResearchAgent, BusinessAgent, ScoringAgent,
-    IdeaGenAgent
+    IdeaGenAgent, TasksAgent
 )
 
 # --- Constants ---
@@ -136,6 +136,28 @@ def handle_idea_command(idea_text: str, project_name: str | None, projects_dir: 
         print(f"{SUCCESS_COLOR}Successfully processed idea for project '{project_name}'. Concept saved to: {idea_md_path}")
     except Exception as e: logger.error(f"Innovator Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error processing idea: {e}")
 
+def handle_tasks_command(project_name: str | None, projects_dir: str):
+    logger.info(f"Handling '--tasks', Project='{project_name}'")
+    project_path = get_project_path(project_name, projects_dir)
+    print(f"{AGENT_COLOR}Initializing Tasks Agent...{RESET_ALL}")
+    tasks = TasksAgent(project_name=project_name, project_path=project_path)
+    try:
+        tasks_md_path = tasks.run()
+        print(f"{SUCCESS_COLOR}Successfully geenrated tasks list for the project '{project_name}'. Tasks report saved to: {tasks_md_path}")
+    except Exception as e: logger.error(f"Tasks Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error geenrating tasks list for project: {e}")
+
+
+def handle_tests_command(project_name: str | None, projects_dir: str):
+    logger.info(f"Handling '--tests', Project='{project_name}'")
+    project_path = get_project_path(project_name, projects_dir)
+    print(f"{AGENT_COLOR}Initializing Tester Agent...{RESET_ALL}")
+    tester = TesterAgent(project_name=project_name, project_path=project_path)
+    try:
+        tests_path = tester.run()
+        print(f"{SUCCESS_COLOR}Successfully geenrated testing code for the project '{project_name}'. Tasks report saved to: {tests_path}")
+    except Exception as e: logger.error(f"Tester Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error geenrating testing code for project: {e}")
+
+
 
 def handle_business_command(project_name: str | None, projects_dir: str):
     logger.info(f"Handling '--business', Project='{project_name}'")
@@ -208,12 +230,7 @@ async def handle_build_features_command(project_name: str, projects_dir: str, ex
         logger.error(f"Project '{project_name}' not found.")
         print(f"{ERROR_COLOR}Error: Project '{project_name}' does not exist.")
         return
-    features_md_path = os.path.join(project_path, "docs", "features.md")
-    if not os.path.exists(features_md_path):
-        logger.error(f"Cannot build architecture: 'docs/features.md' not found.")
-        print(f"{ERROR_COLOR}Error: 'docs/features.md' not found. Please generate the idea first.")
-        return
-
+    
     print(f"{STEP_COLOR}Running Architect Agent to generate architecture plan...{RESET_ALL}")
     architect = ArchitectAgent(project_name=project_name, project_path=project_path)
     try:
@@ -288,7 +305,7 @@ async def handle_enhance_build_command(project_name: str, projects_dir: str, fea
         # Architect agent now returns a list of paths
         out_paths = architect.run_enhance(features=features)
         if not out_paths: # Check if the list is empty
-             raise FileNotFoundError("Architect agent did not produce any enhanced implementation files.")
+             raise FileNotFoundError("Architect agent did not produce any enhanced features or implementation files.")
 
         print(f"{SUCCESS_COLOR}Architecture enhance docs generated: {', '.join(out_paths)}{RESET_ALL}")
     except Exception as e:
@@ -332,19 +349,13 @@ async def handle_code_command(project_name: str, projects_dir: str, execute_comm
         logger.error(f"Cannot code: No implementation plan files (impl_*.md, integ.md, or impl_*.md) found in '{docs_path}'.")
         print(f"{ERROR_COLOR}Error: No implementation plan files found in '{docs_path}'. Please run --build first.")
         return
-
-    # CoderAgent now reads the implementation plan(s) internally.
-    # No need to read impl_content here anymore.
-
-    feedback_content = None
     
     # === Run Coder Agent ===
     print(f"{STEP_COLOR}Running Coder Agent...{RESET_ALL}")
     coder = CoderAgent(project_name=project_name, project_path=project_path)
     generated_files = []
     try:
-        # Pass impl_content=None, CoderAgent will read the files itself
-        generated_files = coder.run(feedback=feedback_content, impl_content=None)
+        generated_files = coder.run()
         status_msg = "Code generated" 
         print(f"{SUCCESS_COLOR}{status_msg} for {len(generated_files)} file(s).{RESET_ALL}")
     except Exception as e:
@@ -488,13 +499,16 @@ async def main(execute_command_func):
     action_group.add_argument('--subject', type=str, metavar='TEXT', help='Generate new list of projects ideas based on subject (requiers --num_ideas --subject_name)')
     action_group.add_argument('--bulk', type=str, metavar='TEXT', help='Generate new projects ideas based on subject json file')
     action_group.add_argument('--idea', type=str, metavar='TEXT', help='Generate new project idea')
+    action_group.add_argument('--tasks', type=str, metavar='TEXT', help='Generate tasks document for the project idea.md')
     action_group.add_argument('--business', action='store_true', help='Generate business docs (business.md) (requires --project)')
     action_group.add_argument('--scoring', action='store_true', help='Generate scoring docs (scoring.md) (requires --project)')
     action_group.add_argument('--research', action='store_true', help='Perform technical research for idea (requires --project)')
     action_group.add_argument('--analyze', action='store_true', help='Perform market analysis for idea (requires --project)')
     action_group.add_argument('--docs', type=str, metavar='TYPE', help=f"Generate specific doc (requires --project).\nTypes: {', '.join(sorted(DocumenterAgent.SUPPORTED_DOC_TYPES))}")
-    action_group.add_argument('--build', action='store_true', help='Generate architecture docs (impl_*.md) (requires --project)')
-    action_group.add_argument('--build-features', action='store_true', help='Generate architecture docs for all features (feature/impl_*.md) (requires --project)')
+    #action_group.add_argument('--build', action='store_true', help='Generate architecture docs (impl_*.md) (requires --project)')
+    action_group.add_argument('--build-features', action='store_true', help='Generate architecture docs from (features*.md) for all features - Generates (impl_[feature]_[component]*.md) (requires --project)')
+    action_group.add_argument('--enhance-features', action='store_true', help='Generate feature docs (feature_*.md) from (idea.md) for all features (requires --project)')
+
     action_group.add_argument('--code', action='store_true', help='Generate code based on impl_*.md (requires --project)')
     action_group.add_argument('--review', action='store_true', help='Review generated code and create review.md (requires --project)')
 
@@ -503,8 +517,6 @@ async def main(execute_command_func):
     parser.add_argument('--projects-dir', type=str, metavar='PATH', default=DEFAULT_PROJECTS_DIR,
                         help=f'Directory to store projects (default: {DEFAULT_PROJECTS_DIR})')
 
-    parser.add_argument('--enhance', action='store_true', default=False, help='Build enhanced documents based on idea.md, impl_*.md, integ.md')
-    parser.add_argument('--features', action='store_true', default=False, help='Build enhanced features document based on idea.md')
     parser.add_argument('--wild', action='store_true', default=False, help='Use wild mode - innovatiove and futuristic prompt')
     parser.add_argument('--num-ideas', type=int, metavar='NUMBER', help='Number of ideas to genenrate according to subject (required subject)')
     parser.add_argument('--subject-name', type=str, metavar='TEXT', help='subject name - new json file name')
@@ -536,6 +548,8 @@ async def main(execute_command_func):
             handle_idea_list_bulk_command(bulk_file=args.bulk, project_name="unknown", projects_dir=projects_dir, wild_mode=args.wild)
         elif args.idea:
             handle_idea_command(idea_text=args.idea, project_name=project_name, projects_dir=projects_dir, wild_mode=args.wild)
+        elif args.tasks:
+            handle_tasks_command(project_name=project_name, projects_dir=projects_dir)
         elif args.business:
             handle_business_command(project_name=project_name, projects_dir=projects_dir)
         elif args.scoring:
@@ -554,13 +568,14 @@ async def main(execute_command_func):
             if not project_name: 
                 parser.error("--build-features requires --project NAME")
             await handle_build_features_command(project_name=project_name, projects_dir=projects_dir, execute_command_func=execute_command_func)
-        elif args.build:
+        elif args.enhance_features:
             if not project_name: 
-                parser.error("--build requires --project NAME")
-            if args.enhance:
-                await handle_enhance_build_command(project_name=project_name, projects_dir=projects_dir, features=args.features, execute_command_func=execute_command_func)
-            else:
-                await handle_build_command(project_name=project_name, projects_dir=projects_dir, execute_command_func=execute_command_func)
+                parser.error("--enhance-features requires --project NAME")
+            await handle_enhance_build_command(project_name=project_name, projects_dir=projects_dir, features=True, execute_command_func=execute_command_func)
+        # elif args.build:
+        #     if not project_name: 
+        #         parser.error("--build requires --project NAME")
+        #     await handle_build_command(project_name=project_name, projects_dir=projects_dir, execute_command_func=execute_command_func)
         elif args.code:
             if not project_name: parser.error("--code requires --project NAME")
             await handle_code_command(project_name=project_name, projects_dir=projects_dir, execute_command_func=execute_command_func)

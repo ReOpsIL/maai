@@ -72,7 +72,8 @@ class ArchitectAgent(BaseAgent):
         coder = CoderAgent(project_name=self.project_name, project_path=self.project_path)
     
         feature_content = coder.get_feature_content()
-        prompt = self._create_feature_impl_prompt(feature_content)
+        idea_content = coder.get_idea_content()
+        prompt = self._create_feature_impl_prompt(idea_content, feature_content)
         
         # Create mode 
         self.logger.debug(f"Generated create prompt for LLM (Architect):\n{prompt[:500]}...")
@@ -101,7 +102,7 @@ class ArchitectAgent(BaseAgent):
         return generated_files
     
 
-    def run_enhance(self, features=False):
+    def run_enhance(self, features=True):
         generated_files = []
         # Model initialization is now handled by BaseAgent
         if not self.model:
@@ -114,9 +115,10 @@ class ArchitectAgent(BaseAgent):
         if features:
             idea_content = coder.get_idea_content()
             prompt = self._create_features_prompt(idea_content)
-        else:
-            impl_content, plan_files = coder.get_impl_content()
-            prompt = self._create_enhanced_prompt(impl_content, plan_files)
+        # else:
+        #     //TODO - handle 
+        #     impl_content, plan_files = coder.get_all_content()
+        #     prompt = self._create_enhanced_prompt(impl_content, plan_files)
         
         file_name = f"request_enhanced_prompt.txt"
         file_path = os.path.join(self.docs_path, file_name)
@@ -145,13 +147,16 @@ class ArchitectAgent(BaseAgent):
         
         try:
             if features:
-                features_file_path = os.path.join(self.docs_path, "features.md")
-                self._write_file(features_file_path, enhanced_content)
-                self.logger.info(f"Successfully created features file: features.md")
+                # features_file_path = os.path.join(self.docs_path, "features.md")
+                # self._write_file(features_file_path, enhanced_content)
+                features_files = self._parse_and_write_features_descriptions(enhanced_content)                
+                self.logger.info(f"Successfully created features file: {features_files}")
+                return features_files
             else:
                 # Parse the combined output and write individual files
                 generated_files = self._parse_and_write_plans(enhanced_content)
                 self.logger.info(f"Successfully created implementation files: {generated_files}")
+                return generated_files
         except ValueError as e:
             self.logger.error(f"Failed to parse AI response: {e}", exc_info=True)
             raise RuntimeError(f"Architect Agent failed during parsing: {e}")
@@ -161,8 +166,6 @@ class ArchitectAgent(BaseAgent):
         except Exception as e:
             self.logger.error(f"An unexpected error occurred during plan writing: {e}", exc_info=True)
             raise RuntimeError(f"An unexpected error occurred in Architect Agent during writing: {e}")
-
-        return generated_files
     
     def _generate(self, idea_content: str) -> str:
         """
@@ -188,12 +191,17 @@ class ArchitectAgent(BaseAgent):
             self.logger.error(f"An unexpected error occurred during LLM API call (Architect): {e}", exc_info=True)
             raise RuntimeError(f"Failed to generate architecture plan using AI: {e}")
 
-    def _create_feature_impl_prompt(self, feature_content: str) -> str: # For initial creation
+    def _create_feature_impl_prompt(self, idea_content: str, feature_content: str) -> str: # For initial creation
             """Creates the prompt for the generative AI model to design the architecture of each feature."""
             prompt = f"""
-    Analyze the following project features description list (provided in Markdown) and generate a set of detailed implementation plans, for each feature and for each optional feature, and a separate integration plan for each feature. These plans must be highly detailed to guide a Coder Agent.
+    Analyze the following project idea and features description list (provided in Markdown) and generate a set of detailed implementation plans, for each feature and for each optional feature, and a separate integration plan for each feature. These plans must be highly detailed to guide a Coder Agent.
 
-    **Project features (from features.md):**
+    **Project idea (from idea.md):**
+    ```markdown
+    {idea_content}
+    ```
+
+    **Project features (from features*.md):**
     ```markdown
     {feature_content}
     ```
@@ -436,6 +444,53 @@ Analyze the following project concept (provided in Markdown) and generate a set 
             ```
             """
     
+    def _parse_and_write_features_descriptions(self, combined_output: str) -> list[str]:
+        """
+        Parses the AI's combined output string based on delimiters and writes
+        individual feature markdown files.
+
+        Args:
+            combined_output: The raw string response from the AI model.
+        Returns:
+            A list of paths to the files written.
+
+        Raises:
+            ValueError: If parsing fails (e.g., delimiters not found).
+            IOError: If writing files fails.
+        """
+        # Updated regex to capture content until the next delimiter or end of string
+        feature_pattern = re.compile(r"<<<KEY_FEATURE:\s*(.*?)>>>\s*(.*?)(?=\s*<<<KEY_FEATURE|\Z)", re.DOTALL | re.IGNORECASE)
+    
+        features = feature_pattern.findall(combined_output)
+        for feature_name, feature in features:
+            feature_id = feature_name.strip().lower()
+            feature_id = re.sub('[^0-9a-zA-Z]+', '_', feature_id)
+            if feature_id[-1] == '_':
+                feature_id = feature_id[:-1]
+
+            written_files = []
+
+            # Write feature files
+           
+            if not feature_name:
+                self.logger.warning("Found component block with empty name, skipping.")
+                continue
+            file_name = f"feature_{feature_id}.md"
+            file_path = os.path.join(self.docs_path, file_name) #feature_name,
+            self.logger.info(f"Writing feature component plan to: {file_path}")
+            feature_content = feature.strip()
+            # Add a header if the AI didn't include one (optional, but good practice)
+            
+            feature_content = f"<<<KEY_FEATURE: `{feature_name}` ID: id_{feature_id} \n\n{feature_content}\n\n>>>"
+            self._write_file(file_path, feature_content) # Raises IOError on failure
+            written_files.append(file_path)
+
+    
+        if not written_files:
+             raise ValueError("Parsing completed, but no valid features were extracted to write.")
+
+        return written_files
+        
     def _parse_and_write_feature_plans(self, combined_output: str) -> list[str]:
         """
         Parses the AI's combined output string based on delimiters and writes
@@ -457,6 +512,11 @@ Analyze the following project concept (provided in Markdown) and generate a set 
 
         features = feature_pattern.findall(combined_output)
         for feature_name, feature in features:
+            feature_id = feature_name.lower()
+            feature_id = re.sub('[^0-9a-zA-Z]+', '_', feature_id)
+            if feature_id[-1] == '_':
+                feature_id = feature_id[:-1]
+
             components = component_pattern.findall(feature)
             integration_match = integration_pattern.search(feature)
 
@@ -467,30 +527,31 @@ Analyze the following project concept (provided in Markdown) and generate a set 
 
             # Write component files
             for name, content in components:
-                component_name = name.strip().lower().replace(" ", "_")
+                component_name = name.strip().lower()
+                component_name = re.sub('[^0-9a-zA-Z]+', '_', component_name)
+                if component_name[-1] == '_':
+                    component_name = component_name[:-1]
+            
                 if not component_name:
                     self.logger.warning("Found component block with empty name, skipping.")
                     continue
-                os.makedirs(feature_name, exist_ok=True)
                 file_name = f"impl_{component_name}.md"
-                file_path = os.path.join(self.docs_path, feature_name, file_name)
-                self.logger.info(f"Writing component plan to: {file_path}")
+                file_path = os.path.join(self.docs_path, file_name) #feature_name,
+                self.logger.info(f"Writing feature component plan to: {file_path}")
                 plan_content = content.strip()
                 # Add a header if the AI didn't include one (optional, but good practice)
-                if not plan_content.startswith("#"):
-                    plan_content = f"# Implementation Plan: {component_name.capitalize()}\n\n{plan_content}"
+                plan_content = f"<<<KEY_FEATURE: `{feature_name.replace('_',' ').strip()}` component `{component_name}` ID: id_{component_name}\n\n{plan_content}\n\n>>>"
                 self._write_file(file_path, plan_content) # Raises IOError on failure
                 written_files.append(file_path)
 
             # Write integration file
             if integration_match:
-                file_name = "integ.md"
+                file_name = f"integ_{feature_id}.md"
                 file_path = os.path.join(self.docs_path, file_name)
                 self.logger.info(f"Writing integration plan to: {file_path}")
                 plan_content = integration_match.group(1).strip()
                 # Add a header if the AI didn't include one
-                if not plan_content.startswith("#"):
-                    plan_content = f"# Integration Plan\n\n{plan_content}"
+                plan_content = f"<<<KEY_FEATURE: `{feature_name.replace('_',' ').strip()}` ID: id_{feature_id} \n\n{plan_content}\n\n>>>"
                 self._write_file(file_path, plan_content) # Raises IOError on failure
                 written_files.append(file_path)
             else:
@@ -531,7 +592,8 @@ Analyze the following project concept (provided in Markdown) and generate a set 
 
         # Write component files
         for name, content in components:
-            component_name = name.strip().lower().replace(" ", "_")
+            component_name = name.strip().lower()
+            component_name = re.sub('[^0-9a-zA-Z]+', '_', component_name)
             if not component_name:
                 self.logger.warning("Found component block with empty name, skipping.")
                 continue

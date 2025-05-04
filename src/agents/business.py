@@ -63,7 +63,9 @@ class BusinessAgent(BaseAgent):
         Analyze the following startup idea from a comprehensive business perspective. Evaluate its strengths (Pros) and weaknesses (Cons) to help assess its viability and potential for success.
 
         **Your Startup Idea:
-        "{idea_text}"
+        ```markdown
+        {idea_text}
+        ```
 
         **Analysis Structure:**
         Please structure your evaluation using the following categories, detailing both the potential upsides (Strengths/Pros) and downsides (Weaknesses/Cons) for each where applicable:
