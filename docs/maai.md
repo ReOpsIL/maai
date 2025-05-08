@@ -1,107 +1,50 @@
-# MAAI: Multi-Agent Coding CLI Application
+# MAAI Project Overview
 
-## Overview
+## Project Idea
 
-MAAI is a command-line application that leverages a multi-agent system to assist in the software development lifecycle, taking a simple software idea through stages like research, analysis, design, implementation, review, testing updates, and documentation. Each agent specializes in a specific part of the lifecycle, collaborating within a project structure.
+MAAI (Multi-Agent AI) is a command-line application designed to automate and streamline the software development process. It utilizes a system of specialized AI agents, each focusing on a distinct phase of the software development lifecycle, to transform a high-level idea into functional, tested, and documented code. The goal is to provide a tool that assists software designers, architects, and developers by automating repetitive or initial creative tasks, allowing them to focus on higher-level problem-solving and refinement.
 
-## Core Idea
+## Current Implemented Features (Agents)
 
-The application aims to streamline the process of turning high-level software ideas into designed, coded, and documented components. Users interact with the system via command-line flags (e.g., `--idea`, `--build`, `--code`, `--review`, `--update`, `--generate-doc`) to manage the development lifecycle and trigger specific agents. All generated artifacts (documents, code, tests) are stored within a structured directory under a main `projects/` folder (configurable, defaults to `~/projects`), specific to each project idea. Dependency management and virtual environment setup might require manual steps.
+The current version of MAAI includes the following agents, each accessible via specific command-line options in `src/main.py`:
 
-## Agent Roles
+*   **InnovatorAgent (`--idea`):** Takes a simple idea description and expands it into a detailed concept document (`docs/idea.md`), outlining the problem, target users, key features, potential enhancements, technical considerations, and user stories.
+*   **IdeaGenAgent (`--subject`, `--bulk`):** Generates a list of startup ideas based on a given subject or processes a bulk list from a JSON file.
+*   **BusinessAgent (`--business`):** Analyzes the project idea from a business perspective, generating a report (`docs/business.md`) on its strengths and weaknesses across various business categories.
+*   **ScoringAgent (`--scoring`):** Evaluates the business analysis (`docs/business.md`) and provides a quantitative score (`docs/scoring.md`) for the project idea's viability.
+*   **MarketAnalystAgent (`--analyze`):** Performs a market analysis of the project idea, identifying the target market, competitive landscape, and business potential, summarized in `docs/market_analysis.md`.
+*   **ResearchAgent (`--research`):** Conducts technical research based on the project idea, identifying relevant technologies, implementation strategies, and architectural patterns, summarized in `docs/research_summary.md`.
+*   **TasksAgent (`--tasks`):** Generates a detailed task list in Markdown format (`docs/tasks.md`) based on the project idea document, breaking down features and considerations into actionable steps.
+*   **ArchitectAgent (`--build-features`, `--enhance-features`):** Designs the technical architecture. It can generate detailed implementation plans for features (`docs/impl_[feature]_[component]*.md`), an overall integration plan (`docs/integ.md`), and enhance/generate feature descriptions (`docs/feature_*.md`) based on the idea.
+*   **CoderAgent (`--code`):** Reads the implementation plans (`docs/impl_*.md`, `docs/integ.md`, `docs/feature_*.md`) and generates the actual source code files in the `src` directory.
+*   **ReviewerAgent (`--review`):** Reviews the generated source code against the implementation plans and general coding best practices, providing feedback in `docs/review.md` if issues are found.
+*   **TesterAgent (`--tests`):** Generates unit and integration test code based on the project documentation and source code, writing them to the `tests` directory. (Note: The current implementation generates the test files but does not execute them).
+*   **DiagramAgent (`--diagrams`):** Generates diagrams (currently using Mermaid syntax in `.mdd` files and converting to `.svg`) based on the project documentation and source code to visualize architecture, class structures, or workflows.
 
-Based on the current implementation in main.py, the agents are as follows:
+## Current Workflow
 
-1.  **InnovatorAgent:** Handles idea generation and expansion.
-2.  **ArchitectAgent:** Generates architecture plans.
-3.  **CoderAgent:** Generates or updates code based on plans.
-4.  **ReviewerAgent:** Reviews code and provides feedback.
-5.  **TesterAgent:** Generates tests.
-6.  **DocumenterAgent:** Generates documentation.
-7.  **MarketAnalystAgent:** Performs market analysis.
-8.  **ResearchAgent:** Performs research.
-9.  **BusinessAgent:** Generates business perspectives.
-10. **ScoringAgent:** Generates scoring reports.
-11. **IdeaGenAgent:** Generates lists of ideas.
+The typical workflow using MAAI involves a sequence of steps, often starting with `--idea` or `--subject`/`--bulk`, followed by analysis (`--analyze`, `--business`, `--scoring`, `--research`), planning (`--tasks`, `--build-features`, `--enhance-features`), implementation (`--code`), and quality assurance (`--review`, `--tests`). Documentation (`--docs`) can be generated at various stages. Each step is triggered manually via the CLI, with agents reading outputs from previous steps (stored in the `docs/` directory) and generating new outputs.
 
-Each agent is imported and used in specific command handlers, utilizing AI models for their operations.
+## Explanation of the Tool/Project Idea
 
-## Command-Line Interface
+MAAI aims to be an AI-powered co-pilot for software development teams. Instead of a single monolithic AI attempting to build an entire application, MAAI breaks down the complex process into specialized tasks handled by individual agents. This modular approach allows for clearer responsibilities, easier development and improvement of individual agents, and a more structured, transparent, and controllable development process. The output of each agent is saved as structured documents (Markdown, JSON, code files), providing a clear trail of the AI's thought process and generated artifacts, which can be reviewed, modified, and fed back into the system.
 
-From the main.py script, the CLI is parsed using argparse with various mutually exclusive actions. Here's a summary based on the code:
+## Proposed Extensions for a Robust Software Solution Tool
 
-*   **--list:** Lists projects in the specified directory.
-*   **--subject:** Generates new list of project ideas based on a subject.
-*   **--bulk:** Processes a bulk file to generate projects.
-*   **--idea:** Generates a new project idea.
-*   **--business:** Generates business docs for a project.
-*   **--scoring:** Generates scoring docs for a project.
-*   **--research:** Performs technical research for a project.
-*   **--analyze:** Performs market analysis for a project.
-*   **--docs:** Generates specific documentation for a project.
-*   **--build:** Generates architecture docs for a project.
-*   **--code:** Generates or fixes code for a project.
-*   **--review:** Reviews code for a project.
+To evolve MAAI into a more comprehensive and innovative tool for software designers, architects, and developers, the following extensions are proposed:
 
-Each command handler in main.py corresponds to these actions, ensuring the project structure is maintained.
+*   **Automated Test Execution and Reporting:** Enhance the TesterAgent or introduce a new agent to automatically execute the generated tests (e.g., using `pytest`) and provide a summary report within the project documentation. This closes the loop on the testing phase.
+*   **Integrated Dependency Management:** Implement functionality to automatically scan generated code for dependencies, generate/update `requirements.txt` (or equivalent), and execute package installation commands (e.g., `pip install`).
+*   **Iterative Development and Refinement Loop:** Introduce an orchestration layer or agent that manages an iterative build-test-review cycle. This agent would automatically trigger code generation, test execution, and code review, feeding the results back to the CoderAgent for refinement until predefined criteria are met (e.g., all tests pass, no critical review feedback).
+*   **Deployment Configuration Generation:** Add an agent capable of generating deployment artifacts such as Dockerfiles, Docker Compose files, or basic cloud deployment scripts (e.g., for AWS Lambda, Azure Functions, Google Cloud Run) based on the project's architecture and technology stack.
+*   **Interactive Feedback and Guided Development:** Develop a mechanism (potentially through a separate interface or enhanced CLI commands) for users to provide specific, targeted feedback on generated code or documentation, allowing them to guide the AI's refinement process more directly.
+*   **Version Control Integration:** Integrate with Git to automate tasks like creating branches for new features, committing generated code and documentation, and potentially assisting with pull request creation.
+*   **Multi-Language and Framework Support:** Extend the CoderAgent and other relevant agents to generate code and documentation for a wider range of programming languages and frameworks beyond Python, based on user selection or architectural requirements.
+*   **Advanced Architectural Pattern Support:** Enhance the ArchitectAgent to understand and apply specific architectural patterns (e.g., microservices, event-driven architecture) and potentially integrate with architecture description languages for more formal modeling.
+*   **User Interface:** Explore the development of a graphical user interface (web-based or desktop) to provide a more intuitive way to interact with MAAI, visualize project progress, review generated artifacts, and manage the development workflow.
+*   **IDE Integration:** Develop plugins or extensions for popular Integrated Development Environments (IDEs) like VS Code to allow developers to leverage MAAI's capabilities seamlessly within their coding environment.
+*   **CI/CD Pipeline Generation:** Add an agent to assist in generating configuration files for common CI/CD platforms (e.g., GitHub Actions, GitLab CI, Jenkins) to automate build, test, and deployment workflows.
+*   **Automated Security Analysis:** Introduce a SecurityAgent to perform basic static analysis on the generated code to identify common security vulnerabilities and provide recommendations.
+*   **Performance Analysis and Optimization:** Add a PerformanceAgent to analyze code for potential performance bottlenecks and suggest optimizations or alternative implementations.
 
-## How to Use (Example Workflow)
-
-1.  **Setup:**
-    *   Ensure Python 3.9+ is installed.
-    *   Clone the MAAI repository.
-    *   Install MAAI's own dependencies: `pip install -r requirements.txt` (in the MAAI repo root).
-    *   Create a `.env` file in the MAAI repo root with `GEMINI_API_KEY=YOUR_API_KEY_HERE`.
-    *   Review `config.yaml` if needed.
-
-2.  **Create Idea:**
-    *   `python src/main.py --idea "A CLI tool for basic image format conversion (jpg, png, webp) using Pillow"`
-    *   This creates a project directory (e.g., `~/projects/a-cli-tool-for-basic-image.../`) and `docs/idea.md`. Review `idea.md`. Let's call the project `image-converter`.
-
-3.  **(Optional) Research/Analysis:**
-    *   `python src/main.py --research --project image-converter`
-    *   `python src/main.py --analyze-idea --project image-converter`
-
-4.  **Generate Architecture:**
-    *   `python src/main.py --build --project image-converter`
-    *   Monitors Architect Agent creating implementation plan(s). Review the generated file(s) in `docs/` (e.g., `impl.md`, `impl_*.md`).
-
-5.  **Generate Code:**
-    *   `python src/main.py --code --project image-converter`
-    *   Monitors Coder Agent creating source files based on the plans. Review `src/`.
-
-6.  **Review Code:**
-    *   `python src/main.py --review --project image-converter`
-    *   Monitors Reviewer Agent. Check if `docs/review.md` was created.
-
-7.  **Apply Fixes (if review.md exists):**
-    *   `python src/main.py --code --fix --project image-converter`
-    *   Monitors Coder Agent applying fixes based on `review.md` and Architect Agent checking for plan updates. Review changes in `src/` and potentially `docs/`. Repeat steps 6 & 7 if necessary.
-
-8.  **(Manual) Setup Dependencies & Environment:**
-    *   Navigate to the project directory: `cd ~/projects/image-converter`
-    *   Create a virtual environment: `python -m venv .venv`
-    *   Activate it: `source .venv/bin/activate` (Linux/macOS) or `.venv\Scripts\activate` (Windows)
-    *   Identify required packages (e.g., from `impl.md` or code analysis). Let's assume `Pillow` is needed.
-    *   Install dependencies: `pip install Pillow`
-    *   (Optional) Create `requirements.txt`: `pip freeze > requirements.txt`
-
-9.  **(Manual) Generate Tests & Run Them:**
-    *   Use the `--update` command with instructions for tests, or manually trigger the Tester agent if possible, or write tests manually based on `impl.md`.
-    *   Example using `--update` (might need refinement): `python ../../src/main.py --update "Generate pytest tests for the core conversion logic" --project image-converter` (Run from MAAI root or adjust path). Review `tests/`.
-    *   Run tests (ensure venv is active): `pytest`
-
-10. **(Optional) Generate Documentation:**
-    *   `python ../../src/main.py --generate-doc project_overview --project image-converter`
-    *   `python ../../src/main.py --generate-doc user_manual --project image-converter`
-
-11. **Iteratively Update (General Changes):**
-    *   `python ../../src/main.py --update "Add support for resizing images with an optional --width and --height argument" --project image-converter`
-    *   Runs Architect -> Coder -> Tester -> Documenter updates based on the general instruction.
-    *   Review changes. Follow up with `--review` and `--code --fix` if needed (Steps 6-7). Manually update dependencies if required (Step 8). Rerun tests (Step 9).
-
-12. **Clean Up:**
-    *   Use `--reset` or `--scratch` from the MAAI root directory as needed.
-    *   `python src/main.py --scratch --project image-converter`
-
-This provides a flexible workflow, combining automated agent steps with necessary manual intervention for environment setup and testing.
+These extensions would transform MAAI from a step-by-step code generation tool into a powerful, integrated platform that supports the entire software development lifecycle, empowering software professionals to build solutions more efficiently and effectively.
