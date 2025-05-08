@@ -61,95 +61,108 @@ Lists all existing projects in the configured projects directory.
 **2. Create a New Project Idea:**
 
 ```bash
-python src/main.py --idea "A brief description of your software idea" [--project <name>]
+python src/main.py --idea "A brief description of your software idea" [--project <name>] [--wild]
 # Example: python src/main.py --idea "A CLI tool for basic image format conversion"
 ```
-Generates a project name (if not provided), creates the directory structure in `projects/`, and runs the Innovator Agent to create `docs/idea.md`.
+Generates a project name (if not provided), creates the directory structure in `projects/`, and runs the Innovator Agent to create `docs/idea.md`. The `--wild` flag enables an innovative and futuristic prompt.
 
 **3. Generate Ideas based on a Subject:**
 
 ```bash
-python src/main.py --subject "Your subject here" --subject-name <name> --num-ideas <number>
+python src/main.py --subject "Your subject here" --subject-name <name> --num-ideas <number> [--wild]
 # Example: python src/main.py --subject "AI-powered tools" --subject-name ai_tools --num-ideas 10
 ```
-Uses the IdeaGenAgent to generate a list of project ideas based on a given subject and saves them to a JSON file.
+Uses the IdeaGenAgent to generate a list of project ideas based on a given subject and saves them to a JSON file. Requires `--subject-name` and `--num-ideas`. The `--wild` flag enables an innovative and futuristic prompt.
 
 **4. Process Bulk Ideas from a File:**
 
 ```bash
-python src/main.py --bulk <path_to_json_file>
+python src/main.py --bulk <path_to_json_file> [--wild]
 # Example: python src/main.py --bulk ideas.json
 ```
-Processes a JSON file containing multiple ideas, creating a project, generating business and scoring documents for each.
+Processes a JSON file containing multiple ideas, creating a project, generating business and scoring documents for each. The `--wild` flag enables an innovative and futuristic prompt for idea processing.
 
-**5. Generate Business Perspective:**
+**5. Generate Tasks List:**
+
+```bash
+python src/main.py --tasks --project <your-project-name>
+```
+Generates a tasks document (`docs/tasks.md`) for the specified project based on the idea.md.
+
+**6. Generate Tests:**
+
+```bash
+python src/main.py --tests --project <your-project-name>
+```
+Generates testing code for the project's source code.
+
+**7. Generate Diagrams:**
+
+```bash
+python src/main.py --diagrams --project <your-project-name>
+```
+Generates diagrams for the project's source code and documents.
+
+**8. Generate Business Perspective:**
 
 ```bash
 python src/main.py --business --project <your-project-name>
 ```
 Runs the BusinessAgent to generate a business perspective document (`docs/business.md`) for the specified project.
 
-**6. Generate Scoring Report:**
+**9. Generate Scoring Report:**
 
 ```bash
 python src/main.py --scoring --project <your-project-name>
 ```
 Runs the ScoringAgent to generate a scoring report (`docs/scoring.md`) for the specified project.
 
-**7. Perform Technical Research:**
+**10. Perform Technical Research:**
 
 ```bash
 python src/main.py --research --project <your-project-name>
 ```
 Runs the ResearchAgent to perform technical research based on the project idea and saves the summary to `docs/research_summary.md`.
 
-**8. Perform Market Analysis:**
+**11. Perform Market Analysis:**
 
 ```bash
 python src/main.py --analyze --project <your-project-name>
 ```
 Runs the MarketAnalystAgent to analyze the market potential of the project idea and saves the analysis to `docs/market_analysis.md`.
 
-**9. Generate Architecture:**
-
-```bash
-python src/main.py --build --project <your-project-name>
-# Example: python src/main.py --build --project a-cli-tool-for-basic-image...
-```
-Runs the Architect Agent to generate or update implementation plan documents (`docs/impl_*.md`).
-
-**10. Generate Architecture for Features:**
+**12. Generate Architecture for Features:**
 
 ```bash
 python src/main.py --build-features --project <your-project-name>
 # Example: python src/main.py --build-features --project a-cli-tool-for-basic-image...
 ```
-Runs the Architect Agent to generate architecture docs for all features (`feature/impl_*.md`).
+Runs the Architect Agent to generate architecture docs from existing feature files (`features*.md`) for all features. Generates files like `impl_[feature]_[component]*.md`.
 
-**11. Enhance Build:**
+**13. Enhance Features Architecture:**
 
 ```bash
-python src/main.py --build --enhance --project <your-project-name>
-# Example: python src/main.py --build --enhance --project a-cli-tool-for-basic-image...
+python src/main.py --enhance-features --project <your-project-name>
+# Example: python src/main.py --enhance-features --project a-cli-tool-for-basic-image...
 ```
-Runs the Architect Agent to generate enhanced architecture docs.
+Runs the Architect Agent to generate feature documents (`feature_*.md`) from the main idea document (`idea.md`).
 
-**12. Generate or Update Code:**
+**14. Generate or Update Code:**
 
 ```bash
 python src/main.py --code --project <your-project-name>
 # Example: python src/main.py --code --project a-cli-tool-for-basic-image...
 ```
-Runs the Coder Agent to generate code based on the implementation plans.
+Runs the Coder Agent to generate code based on the implementation plans (`impl_*.md`).
 
-**13. Review Code:**
+**15. Review Code:**
 
 ```bash
 python src/main.py --review --project <your-project-name>
 ```
 Runs the Reviewer Agent to review the generated code and create `docs/review.md` if issues are found.
 
-**14. Generate Specific Documentation:**
+**16. Generate Specific Documentation:**
 
 ```bash
 python src/main.py --docs <type> --project <your-project-name>
@@ -173,6 +186,8 @@ Based on src/main.py, the agents are:
 *   **BusinessAgent:** Generates business perspectives.
 *   **ScoringAgent:** Generates scoring reports.
 *   **IdeaGenAgent:** Generates lists of ideas.
+*   **TasksAgent:** Generates tasks lists.
+*   **DiagramAgent:** Generates diagrams.
 
 ## Contributing
 
