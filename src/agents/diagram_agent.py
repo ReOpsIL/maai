@@ -24,7 +24,7 @@ class DiagramAgent(BaseAgent):
         all_content, _ = coder.get_all_content()
         if not all_content:
             self.logger.warning(f"No project markdown documents found in {self.src_path}.")
-            raise RuntimeError(f"Diagrams Agent failed during diagrams generation: roject markdown documents found in project path") 
+            raise RuntimeError(f"Diagrams Agent failed during diagrams generation: project markdown documents found in project path") 
        
         # --- Read Context (Source Code, Existing Tests if updating) ---
         self.logger.info(f"Reading source code from: {self.src_path}")
@@ -89,7 +89,7 @@ class DiagramAgent(BaseAgent):
         2.  **Detail Level:** The diagrams must contain sufficient detail for software programmers and team managers to understand the system flow, components, integration, connections, and communication between modules and components.
         3.  **Source Code Diagrams:** If generating diagrams for source code, focus on class structure, inheritance/relationships, key methods/attributes, API interactions (if evident), and data structures.
         4.  **Mandatory Output Format:** The output structure is critical. You *must* follow the format specified below for *every* generated Mermaid diagram.
-            *   Enclose each complete Mermaid diagram definition within a fenced code block (```mermaid ... ``` or just ``` ... ```).
+            *   Enclose each complete Mermaid diagram definition within a fenced code block.
             *   **Prefix** each code block with `<<<FILENAME: path/to/diagram_name.mdd` on its own line. Use a relevant path and filename (e.g., `diagrams/feature_flow.mdd`, `diagrams/backend_components.mdd`).
             *   **Postfix** each code block with `>>>` on its own line.
 

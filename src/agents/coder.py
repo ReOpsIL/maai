@@ -580,7 +580,7 @@ my_project_root/
         """Creates the prompt for the generative AI model to generate code for ALL files from scratch or based on feedback."""
     
         prompt = f"""
-Generate the complete, runnable code content for ALL necessary files for the project described in the provided project details. 
+Generate the complete, runnable code content for ALL files for the project described in the provided project details. 
 The project might involve various programming languages (like Python, JavaScript, TypeScript, Java, Kotlin, etc.) and platforms (like backend, web frontend, Android, etc.).
 Adhere strictly to the plan's specifications regarding languages, frameworks, modules, classes, methods, file structure, and overall architecture.
 
@@ -598,7 +598,7 @@ Adhere strictly to the plan's specifications regarding languages, frameworks, mo
     *   For **Web**: Use HTML5, CSS3, and follow specified preprocessor/framework guidelines.
     *   If language specifics are unclear in the plan, use common modern standards and best practices for that language/platform.
 3.  **Implement all core logic, classes, functions, UI layouts, components, etc.** defined in the plan. Include basic error handling where appropriate (e.g., file I/O, network requests, user input validation, null checks).
-4.  **Include necessary import/require/include statements** at the beginning of each source file, appropriate for the language and module system used (e.g., Python imports, ES modules, CommonJS, Java imports, Kotlin imports).
+4.  **Include all import/require/include statements** at the beginning of each source file, appropriate for the language and module system used (e.g., Python imports, ES modules, CommonJS, Java imports, Kotlin imports).
 5.  **Include basic documentation comments** for primary functions, classes, and methods in the respective languages (e.g., Python docstrings, JSDoc, JavaDoc, KDoc). For configuration or markup files, add comments where clarification is needed.
 6.  **Structure the output using Markdown code blocks.** Each block MUST be prefixed with the intended relative filename from the project root, like this:
 

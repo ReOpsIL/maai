@@ -84,35 +84,42 @@ class InnovatorAgent(BaseAgent):
 
             **User Idea:** "{idea_text}"
 
-            **Instructions:**
-            - Ensure each section is clearly marked using appropriate Markdown headers (e.g., `## Expanded Concept`).
-            - Maintain professional tone, clear formatting, and structured bullets or paragraphs as needed.
-            - Be creative but grounded—suggest features that are technically possible and aligned with the concept.
-            - If the idea is vague or minimal, first expand it to ensure understanding before moving into the sections.
+            * Use appropriate Markdown headers to clearly separate each section (e.g., `## Expanded Concept`).
+            * Maintain a professional tone, clear structure, and consistent formatting using bullet points or paragraphs as needed.
+            * Be imaginative yet practical—propose features that are technically feasible and aligned with the core concept.
+            * If the input idea is vague or underdeveloped, begin by expanding on it to establish a clear understanding before proceeding with the other sections.
 
-            **Generate the following sections:**
+            **Generate the following sections in strict Markdown format (no extra intro or conclusion text):**
 
             1. **Expanded Concept**
-            - Elaborate on the core idea. What problem does it solve? What is the primary goal?
+
+            * Elaborate on the core idea. What problem does it address? What is the primary goal or outcome?
 
             2. **Target Users**
-            - Who would use this? Describe the ideal user profile(s) (e.g., roles, skills, needs).
+
+            * Identify and describe the intended user profiles (e.g., roles, skill levels, goals, or needs).
 
             3. **Key Features**
-            - List 5–20 core features with brief descriptions. Use bullet points. Focus on functions that address real user needs.
+
+            * List **5–20 core features** with detailed descriptions. Focus on functionalities that solve real user problems.
+            * *Do not* include implementation-level details—explain each feature thoroughly from the user's perspective.
 
             4. **Potential Enhancements / Future Ideas**
-            - Suggest 5–10 advanced features or long-term extensions. These can include integrations, automation, or expansion.
+
+            * Suggest **5–10 advanced or long-term features**, such as integrations, automation, or scalability improvements.
+            * Provide detailed explanations for each idea without diving into implementation specifics.
 
             5. **High-Level Technical Considerations**
-            - Mention potential technologies, platforms, or architectures (e.g., Python + Flask for backend, mobile app with local DB, etc.). Keep high-level without diving into implementation.
+
+            * Outline possible technologies, platforms, or architectures that could support the concept (e.g., backend frameworks, mobile app structures, database types).
+            * Keep this section high-level—no code or deep technical breakdowns.
 
             6. **User Stories (Examples)**
-            - Write 5–10 user stories in the format:
-                `As a [type of user], I want to [do something] so that [I get a benefit].`
-                - Example: `As a returning user, I want to save my settings so that I don’t have to reconfigure them each time.`
 
-            **Format the entire output strictly as Markdown.**
-            Do not include any introductory or concluding text outside of the Markdown structure.
+            * Write **5–10 user stories** using this format:
+                `As a [type of user], I want to [do something] so that [I achieve a benefit].`
+
+                * Example: `As a returning user, I want to save my settings so that I don’t have to reconfigure them each time.`
+
         """
         return prompt

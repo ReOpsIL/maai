@@ -11,9 +11,10 @@ from .research_agent import ResearchAgent
 from .business import BusinessAgent
 from .scoring import ScoringAgent
 from .idea_gen import IdeaGenAgent
-from .tasks_agent import TasksAgent
+from .check_list_tasks_agent import CheckListTasksAgent
 from .test_agent import TesterAgent
 from .diagram_agent import DiagramAgent
+from .impl_tasks_agent import ImplTasksAgent
 
 __all__ = [
     "BaseAgent",
@@ -22,7 +23,7 @@ __all__ = [
     "CoderAgent",
     "ReviewerAgent",
     "TesterAgent",
-    "TasksAgent",
+    "CheckListTasksAgent",
     "DiagramAgent",
     "DocumenterAgent",
     "MarketAnalystAgent",
@@ -30,5 +31,5 @@ __all__ = [
     "BusinessAgent",
     "ScoringAgent",
     "IdeaGenAgent",
-    "TaskAgent"
+    "ImplTasksAgent"
 ]

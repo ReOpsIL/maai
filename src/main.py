@@ -24,7 +24,7 @@ from utils import slugify, load_config
 from agents import (
     InnovatorAgent, ArchitectAgent, CoderAgent, ReviewerAgent, TesterAgent,
     DocumenterAgent, MarketAnalystAgent, ResearchAgent, BusinessAgent, ScoringAgent,
-    IdeaGenAgent, TasksAgent, DiagramAgent
+    IdeaGenAgent, CheckListTasksAgent, DiagramAgent, ImplTasksAgent
 )
 
 # --- Constants ---
@@ -136,15 +136,26 @@ def handle_idea_command(idea_text: str, project_name: str | None, projects_dir: 
         print(f"{SUCCESS_COLOR}Successfully processed idea for project '{project_name}'. Concept saved to: {idea_md_path}")
     except Exception as e: logger.error(f"Innovator Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error processing idea: {e}")
 
-def handle_tasks_command(project_name: str | None, projects_dir: str):
-    logger.info(f"Handling '--tasks', Project='{project_name}'")
+def handle_check_list_tasks_command(project_name: str | None, projects_dir: str):
+    logger.info(f"Handling '--check-list-tasks', Project='{project_name}'")
     project_path = get_project_path(project_name, projects_dir)
-    print(f"{AGENT_COLOR}Initializing Tasks Agent...{RESET_ALL}")
-    tasks = TasksAgent(project_name=project_name, project_path=project_path)
+    print(f"{AGENT_COLOR}Initializing CheckListTasks Agent...{RESET_ALL}")
+    tasks = CheckListTasksAgent(project_name=project_name, project_path=project_path)
     try:
         tasks_md_path = tasks.run()
-        print(f"{SUCCESS_COLOR}Successfully geenrated tasks list for the project '{project_name}'. Tasks report saved to: {tasks_md_path}")
-    except Exception as e: logger.error(f"Tasks Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error geenrating tasks list for project: {e}")
+        print(f"{SUCCESS_COLOR}Successfully genrated check list tasks  for the project '{project_name}'. Check list report saved to: {tasks_md_path}")
+    except Exception as e: logger.error(f"CheckListTasksAgent Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error geenrating check list tasks for project: {e}")
+
+
+def handle_impl_tasks_command(project_name: str | None, projects_dir: str):
+    logger.info(f"Handling '--impl-tasks', Project='{project_name}'")
+    project_path = get_project_path(project_name, projects_dir)
+    print(f"{AGENT_COLOR}Initializing ImplTasks Agent...{RESET_ALL}")
+    tasks = ImplTasksAgent(project_name=project_name, project_path=project_path)
+    try:
+        impl_tasks_md_path = tasks.run()
+        print(f"{SUCCESS_COLOR}Successfully genrated implemntation tasks  for the project '{project_name}'. Check list report saved to: {impl_tasks_md_path}")
+    except Exception as e: logger.error(f"ImplTasksAgent Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error geenrating implementation tasks for project: {e}")
 
 
 def handle_tests_command(project_name: str | None, projects_dir: str):
@@ -154,7 +165,7 @@ def handle_tests_command(project_name: str | None, projects_dir: str):
     tester = TesterAgent(project_name=project_name, project_path=project_path)
     try:
         tests_path = tester.run()
-        print(f"{SUCCESS_COLOR}Successfully geenrated testing code for the project '{project_name}'. Tasks report saved to: {tests_path}")
+        print(f"{SUCCESS_COLOR}Successfully genrated testing code for the project '{project_name}'. Tasks report saved to: {tests_path}")
     except Exception as e: logger.error(f"Tester Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error geenrating testing code for project: {e}")
 
 
@@ -165,7 +176,7 @@ def handle_diagrams_command(project_name: str | None, projects_dir: str):
     diagrams = DiagramAgent(project_name=project_name, project_path=project_path)
     try:
         diagrams_path = diagrams.run()
-        print(f"{SUCCESS_COLOR}Successfully geenrated diagrams for the project '{project_name}'. Tasks report saved to: {diagrams_path}")
+        print(f"{SUCCESS_COLOR}Successfully genrated diagrams for the project '{project_name}'. Tasks report saved to: {diagrams_path}")
     except Exception as e: logger.error(f"Diagram Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error geenrating diagrams for project: {e}")
 
 def handle_business_command(project_name: str | None, projects_dir: str):
@@ -175,7 +186,7 @@ def handle_business_command(project_name: str | None, projects_dir: str):
     business = BusinessAgent(project_name=project_name, project_path=project_path)
     try:
         business_md_path = business.run()
-        print(f"{SUCCESS_COLOR}Successfully geenrated business perspective for project '{project_name}'. Business report saved to: {business_md_path}")
+        print(f"{SUCCESS_COLOR}Successfully genrated business perspective for project '{project_name}'. Business report saved to: {business_md_path}")
     except Exception as e: logger.error(f"Business Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error geenrating business perspective for project: {e}")
 
 def handle_scoring_command(project_name: str | None, projects_dir: str):
@@ -185,7 +196,7 @@ def handle_scoring_command(project_name: str | None, projects_dir: str):
     scoring = ScoringAgent(project_name=project_name, project_path=project_path)
     try:
         scoring_md_path = scoring.run()
-        print(f"{SUCCESS_COLOR}Successfully geenrated business perspective scoring for project '{project_name}'. Score report saved to: {scoring_md_path}")
+        print(f"{SUCCESS_COLOR}Successfully genrated business perspective scoring for project '{project_name}'. Score report saved to: {scoring_md_path}")
     except Exception as e: logger.error(f"Scoring Agent failed: {e}", exc_info=True); print(f"{ERROR_COLOR}Error geenrating scoring business perspective for project: {e}")
 
 
@@ -312,7 +323,7 @@ async def handle_enhance_build_command(project_name: str, projects_dir: str, fea
     try:
         # Assuming architect.run() generates docs
         # Architect agent now returns a list of paths
-        out_paths = architect.run_enhance(features=features)
+        out_paths = architect.run_enhance_features(features=features)
         if not out_paths: # Check if the list is empty
              raise FileNotFoundError("Architect agent did not produce any enhanced features or implementation files.")
 
@@ -508,7 +519,8 @@ async def main(execute_command_func):
     action_group.add_argument('--subject', type=str, metavar='TEXT', help='Generate new list of projects ideas based on subject (requiers --num_ideas --subject_name)')
     action_group.add_argument('--bulk', type=str, metavar='TEXT', help='Generate new projects ideas based on subject json file')
     action_group.add_argument('--idea', type=str, metavar='TEXT', help='Generate new project idea')
-    action_group.add_argument('--tasks', action='store_true', help='Generate tasks document for the project idea.md')
+    action_group.add_argument('--check-list-tasks', action='store_true', help='Generate check list tasks document for the project idea.md')
+    action_group.add_argument('--impl-tasks', action='store_true', help='Generate implementation tasks document for the project impl_*.md')
 
     action_group.add_argument('--tests', action='store_true', help='Generate tests for the project soourc code')
     action_group.add_argument('--diagrams', action='store_true', help='Generate diagrams for the project source code and documents')
@@ -561,8 +573,10 @@ async def main(execute_command_func):
             handle_idea_list_bulk_command(bulk_file=args.bulk, project_name="unknown", projects_dir=projects_dir, wild_mode=args.wild)
         elif args.idea:
             handle_idea_command(idea_text=args.idea, project_name=project_name, projects_dir=projects_dir, wild_mode=args.wild)
-        elif args.tasks:
-            handle_tasks_command(project_name=project_name, projects_dir=projects_dir)
+        elif args.check_list_tasks:
+            handle_check_list_tasks_command(project_name=project_name, projects_dir=projects_dir)
+        elif args.impl_tasks:
+            handle_impl_tasks_command(project_name=project_name, projects_dir=projects_dir)
         elif args.tests:
             handle_tests_command(project_name=project_name, projects_dir=projects_dir)
         elif args.diagrams:

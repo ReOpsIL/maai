@@ -1,7 +1,7 @@
 import os
 from .base_agent import BaseAgent
 
-class TasksAgent(BaseAgent):
+class CheckListTasksAgent(BaseAgent):
     """
     Generate tasks file for project.
     """
@@ -68,15 +68,15 @@ class TasksAgent(BaseAgent):
         4.  **Categorization:** Organize the tasks into logical sections. Adapt the categories based on the project type. General suggestions include:
             *   Foundational Setup / Project Initialization
             *   Core Functionality / Algorithm Development
-            *   Data Handling & Integration (e.g., APIs, Databases, External Systems like PACS/EHR)
+            *   Data Handling & Integration (e.g., APIs, Databases, External Systems )
             *   Backend / Server-Side Tasks
             *   Frontend / User Interface / Client Application Tasks (if applicable)
             *   Infrastructure / Deployment / Operations
             *   Testing / Validation / Quality Assurance
-            *   Regulatory / Compliance (Especially important for specific domains like medical)
+            *   Regulatory / Compliance 
             *   Documentation
             *   Potential Enhancements / Future Work
-        5.  **Domain Specificity:** Pay close attention to domain-specific requirements, standards, technologies, or regulations mentioned (e.g., medical standards like DICOM, FDA regulations, specific hardware, financial compliance, specific APIs) and create relevant tasks.
+        5.  **Domain Specificity:** Pay close attention to domain-specific requirements, standards, technologies, or regulations mentioned and create relevant tasks.
         6.  **Include Implicit Tasks:** Add standard software development tasks that might not be explicitly listed but are necessary, such as:
             *   Detailed requirements gathering/refinement
             *   Architecture design

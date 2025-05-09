@@ -102,7 +102,7 @@ class ArchitectAgent(BaseAgent):
         return generated_files
     
 
-    def run_enhance(self, features=True):
+    def run_enhance_features(self, features=True):
         generated_files = []
         # Model initialization is now handled by BaseAgent
         if not self.model:
@@ -120,26 +120,16 @@ class ArchitectAgent(BaseAgent):
         #     impl_content, plan_files = coder.get_all_content()
         #     prompt = self._create_enhanced_prompt(impl_content, plan_files)
         
-        file_name = f"request_enhanced_prompt.txt"
-        file_path = os.path.join(self.docs_path, file_name)
-        self.logger.info(f"Writing request enhanced prompt to: {file_path}")
-        self._write_file(file_path, prompt)
     
         # Create mode 
         self.logger.debug(f"Generated create prompt for LLM (Architect):\n{prompt[:500]}...")
         try:
             self.logger.info("Sending request to LLM API for enhanced prompt...")
             enhanced_prompt = self.model.generate_content(prompt)    
-            file_name = f"enhanced_prompt.txt"
-            file_path = os.path.join(self.docs_path, file_name)
-            self.logger.info(f"Writing enhanced prompt to: {file_path}")
-            self._write_file(file_path, enhanced_prompt)
+
             self.logger.debug(f"Generated enhanced prompt (first 500 chars):\n{enhanced_prompt[:500]}...")
             enhanced_content = self.model.generate_content(enhanced_prompt)
-            file_name = f"enhanced_content.txt"
-            file_path = os.path.join(self.docs_path, file_name)
-            self.logger.info(f"Writing enhanced content to: {file_path}")
-            self._write_file(file_path, enhanced_content)
+   
             self.logger.debug(f"Generated enhanced content (first 500 chars):\n{enhanced_prompt[:500]}...")
         except Exception as e:
             self.logger.error(f"An unexpected error occurred during LLM API call (Architect): {e}", exc_info=True)
@@ -334,62 +324,72 @@ Analyze the following project concept (provided in Markdown) and generate a set 
     
     
     def _create_features_prompt(self, idea_content):
-        return f"""**Act as a Prompt Engineering Specialist.**
+        return f"""
+        **Your task is to generate a comprehensive prompt.** This prompt will be used to instruct another large language model to act as a senior product thinker, concept designer, and system architect.
 
-            **Your goal is to generate a comprehensive prompt.** This prompt will be used later to instruct another large language model to act as an expert system architect and senior developer.
+        The generated prompt should direct the model to perform the following actions using the input file `idea.md`:
+        1. **Understand the Project Concept**
 
-            The prompt you generate should tell the model to perform the following tasks based on provided input files:
+        * Instruct the model to carefully read and fully comprehend the project idea described in `idea.md`, with a focus on purpose, problem space, and user goals.
+        2. **Explain the Story Behind Each \[Key Feature]**
 
-            1.  **Read and Understand:** Instruct the model to meticulously read and fully understand the project idea described in a file named `idea.md`.
-            2.  **Extend and Detail Key Features:** Instruct the model to significantly extend, refine, and add greater detail to *each* of the <## Key Features> in `idea.md` 
-            3.  **Extend and Detail Potential Enhancements / Future Ideas:** Instruct the model to significantly extend, refine, and add greater detail to *each* of the <## Potential Enhancements / Future Ideas> in `idea.md`     
-            4.  **Generate Output:** Instruct the model that its final output should be the complete, updated content of *each* of the <## Key Features>  and <## Potential Enhancements / Future Ideas> .
-            5.  **Target Outcome:** Emphasize that the objective of the generated prompt's task is to produce a robust, accurate, and detailed feaures descriptions that are sufficiently clear and complete to allow direct implementation of the described features.
+        * Guide the model to analyze every item listed under the section `## Key Features` and expand each one into a rich, user-focused narrative.
+        * For each feature, explain:
+            * What it does
+            * Why it exists (the problem or need it addresses)
+            * Who benefits from it and how
+            * How it fits into and supports the overall project vision
+        * *Do not* include implementation-level details, technical stacks, or architectural concepts.
 
-            Your output should be *only* the text of the prompt described above. Do not include any conversational text or explanations outside of the prompt itself.
-            
-            6.  **Format Output:** Structure the entire output clearly using the following delimiters. **Crucially, place each component's plan and the integration plan between these delimiters.**
+        3. **Explain the Story Behind Each \[Potential Enhancement / Future Idea]**
+        * Do the same for all entries under the section `## Potential Enhancements / Future Ideas`.
+        * Focus on their future potential, value proposition, and extended user impact within the broader concept.
 
-                ```
-                # Key features section:
-                <<<KEY_FEATURE: [feature_name_1]>>>
-                # Feature description: [Feature Name 1]
-                (Detailed Markdown plan for feature 1...)
+        4. **Clarify the Purpose of the Task**
+        * Emphasize that the objective is to create **clear, compelling, and practical functional descriptions** for each feature—providing insight into their **role, user value, and conceptual purpose**, rather than how they will be implemented.
 
-                <<<KEY_FEATURE: [feature_name_2]>>>
-                # Feature description: [Feature Name 2]
-                (Detailed Markdown plan for feature 2...)
+        5. **Apply Strict Output Formatting**
+        * Instruct the model to output its entire response using the following delimiter structure:
 
-                <<<KEY_FEATURE: [feature_name_n]>>>
-                # Feature description: [Feature Name N]
-                (Detailed Markdown plan for feature n...)
+        ```
+        # Key features section:
+        <<<KEY_FEATURE: [feature_name_1]>>>
+        # Feature description: [Feature Name 1]
+        (Detailed Markdown explanation focused on the story, use case, and role of feature 1...)
 
-                # Optional feature section:
-                <<<KEY_FEATURE: [opt_feature_name_1]>>>
-                # Optional feature description: [Optional Feature Name 1]
-                (Detailed Markdown plan for optional feature 1...)
+        <<<KEY_FEATURE: [feature_name_2]>>>
+        # Feature description: [Feature Name 2]
+        (Detailed Markdown explanation focused on the story, use case, and role of feature 2...)
 
-                <<<KEY_FEATURE: [opt_feature_name_2]>>>
-                # Optional feature description: [Optional Feature Name 2]
-                (Detailed Markdown plan for optional feature 2...)
+        <<<KEY_FEATURE: [feature_name_n]>>>
+        # Feature description: [Feature Name N]
+        (Detailed Markdown explanation focused on the story, use case, and role of feature n...)
 
-                <<<KEY_FEATURE: [opt_feature_name_n]>>>
-                # Optional feature description: [Optional Feature Name N]
-                (Detailed Markdown plan for optional feature n...)
+        # Optional feature section:
+        <<<KEY_FEATURE: [opt_feature_name_1]>>>
+        # Optional feature description: [Optional Feature Name 1]
+        (Detailed Markdown explanation focused on the story, use case, and role of optional feature 1...)
 
-                ```
+        <<<KEY_FEATURE: [opt_feature_name_2]>>>
+        # Optional feature description: [Optional Feature Name 2]
+        (Detailed Markdown explanation focused on the story, use case, and role of optional feature 2...)
 
-                *   Replace `[feature_name_1]`, `[feature_name_2]`, `[opt_feature_name_1]`, `[opt_feature_name_2]`, etc., with the actual lowercase names of the features (e.g., `calcium risk`, `preview axial` Etc').
-                *   Ensure the content within each delimited section is valid Markdown.
-                *   Do not include any text before the first delimiter or after the last plan.
+        <<<KEY_FEATURE: [opt_feature_name_n]>>>
+        # Optional feature description: [Optional Feature Name N]
+        (Detailed Markdown explanation focused on the story, use case, and role of optional feature n...)
+        ```
 
-            **Output the complete response containing all delimited sections.**
-            
+        * Replace `[feature_name_*]` with the lowercase version of each actual feature name (e.g., `real-time alerts`, `workflow summary`, etc.).
+        * All output must be valid, well-formatted Markdown.
+        * Do **not** include any introductory or concluding text outside the delimited structure.
+
+        **Final Requirement:**
+        Ensure that the response focuses purely on the **functional storytelling, value, and role** of each feature within the larger idea. Technical implementation is out of scope for this stage and will be addressed later.
+
+
             **idea file with list of features and optional features(`idea.md`):**
             ```markdown
-
             {idea_content}
-
             ```
             """
     

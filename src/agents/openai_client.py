@@ -52,9 +52,9 @@ class OpenAIClient(AiClient):
             self.logger.error("Model not initialized. Cannot generate response.")
             return ""
 
-        print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+        print("@@@@@@@@@@@@@@@ Prompt @@@@@@@@@@@@@@@@@")
         print(prompt)
-        print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n")
+        print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n")
         
         try:
             messages=[
@@ -78,7 +78,11 @@ class OpenAIClient(AiClient):
             if completion.choices is None:
                 raise Exception(str(completion.error))
 
-            print(completion.choices)
+
+            print("@@@@@@@@@@@@@@@ Answer @@@@@@@@@@@@@@@@@")
+            print(completion.choices[0].message.content)
+            print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n")
+            
             return completion.choices[0].message.content
         except Exception as e:
             self.logger.error(f"Error generating response from model API: {e}")
